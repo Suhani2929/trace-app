@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TRACE - Health Reconciliation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f6f8fc;
+            color: #1a202c;
+            padding: 20px;
+        }
+        .app {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0 24px 0;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 28px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #1a202c;
+        }
+        .logo span {
+            color: #5a67d8;
+        }
+        .logo-sub {
+            font-size: 14px;
+            font-weight: 400;
+            color: #718096;
+            margin-left: 8px;
+        }
+        .tagline {
+            font-size: 14px;
+            color: #4a5568;
+            background: #edf2f7;
+            padding: 6px 16px;
+            border-radius: 20px;
+        }
+        .upload-box {
+            background: white;
+            border: 2px dashed #cbd5e0;
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            margin-bottom: 28px;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+        .upload-box:hover {
+            border-color: #5a67d8;
+            background: #f7fafc;
+        }
+        .upload-box .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        .upload-box h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .upload-box p {
+            color: #718096;
+            font-size: 14px;
+        }
+        .upload-box input[type="file"] {
+            display: none;
+        }
+        .upload-btn {
+            display: inline-block;
+            background: #5a67d8;
+            color: white;
+            padding: 10px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-top: 16px;
+            cursor: pointer;
+            border: none;
+            font-size: 15px;
+            transition: 0.2s;
+        }
+        .upload-btn:hover {
+            background: #4c51bf;
+            transform: scale(1.02);
+        }
+        .file-list {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        .file-tag {
+            background: #ebf4ff;
+            color: #2b6cb0;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .file-tag .remove {
+            cursor: pointer;
+            color: #fc8181;
+            font-weight: 700;
+        }
+        .processing {
+            background: #ebf8ff;
+            border: 1px solid #bee3f8;
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+        }
+        .processing.show {
+            display: flex;
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #bee3f8;
+            border-top-color: #3182ce;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        .processing-text {
+            font-size: 15px;
+            color: #2b6cb0;
+        }
+        .processing-text strong {
+            font-weight: 600;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 14px;
+            padding: 18px 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid #e2e8f0;
+        }
+        .stat-card .num {
+            font-size: 32px;
+            font-weight: 700;
+        }
+        .stat-card .label {
+            font-size: 13px;
+            color: #718096;
+            margin-top: 2px;
+        }
+        .stat-card.confirmed {
+            border-left-color: #48bb78;
+        }
+        .stat-card.confirmed .num {
+            color: #48bb78;
+        }
+        .stat-card.conflicts {
+            border-left-color: #ed8936;
+        }
+        .stat-card.conflicts .num {
+            color: #ed8936;
+        }
+        .stat-card.missing {
+            border-left-color: #fc8181;
+        }
+        .stat-card.missing .num {
+            color: #fc8181;
+        }
+        .stat-card.outdated {
+            border-left-color: #a0aec0;
+        }
+        .stat-card.outdated .num {
+            color: #a0aec0;
+        }
+        .stat-card.unknown {
+            border-left-color: #9f7aea;
+        }
+        .stat-card.unknown .num {
+            color: #9f7aea;
+        }
+        .section {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title .badge {
+            font-size: 12px;
+            background: #edf2f7;
+            padding: 2px 12px;
+            border-radius: 20px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+        .empty-state {
+            text-align: center;
+            color: #a0aec0;
+            padding: 30px 0;
+            font-size: 15px;
+        }
+        .empty-state .icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .conflict-item {
+            border: 1px solid #fed7d7;
+            background: #fff5f5;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .conflict-item .title {
+            font-weight: 600;
+            color: #c53030;
+            font-size: 15px;
+        }
+        .conflict-item .detail {
+            font-size: 14px;
+            color: #4a5568;
+            margin-top: 4px;
+        }
+        .conflict-item .source {
+            font-size: 13px;
+            color: #718096;
+            margin-top: 6px;
+            background: #edf2f7;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .missing-item {
+            border: 1px solid #feb2b2;
+            background: #fff5f5;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+        }
+        .missing-item .title {
+            font-weight: 600;
+            color: #c53030;
+            font-size: 15px;
+        }
+        .missing-item .detail {
+            font-size: 14px;
+            color: #4a5568;
+            margin-top: 4px;
+        }
+        .missing-item .source {
+            font-size: 13px;
+            color: #718096;
+            margin-top: 6px;
+            background: #edf2f7;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .confirmed-item {
+            border: 1px solid #c6f6d5;
+            background: #f0fff4;
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .confirmed-item .source {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+        }
+        .outdated-item {
+            border: 1px solid #e2e8f0;
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .outdated-item .source {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+        }
+        .handoff-box {
+            background: #ebf8ff;
+            border: 1px solid #bee3f8;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-top: 8px;
+        }
+        .handoff-box h4 {
+            font-size: 15px;
+            color: #2b6cb0;
+            margin-bottom: 8px;
+        }
+        .handoff-box p {
+            font-size: 14px;
+            color: #2c5282;
+            line-height: 1.6;
+        }
+        .handoff-box .source {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 8px;
+        }
+        .btn-secondary {
+            background: #3182ce;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-top: 12px;
+        }
+        .btn-secondary:hover {
+            background: #2b6cb0;
+        }
+        .clear-btn {
+            background: none;
+            border: none;
+            color: #fc8181;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 6px 16px;
+            border-radius: 8px;
+            transition: 0.2s;
+            margin-top: 4px;
+        }
+        .clear-btn:hover {
+            background: #fff5f5;
+        }
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .upload-box {
+                padding: 24px 16px;
+            }
+            .section {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app">
+
+        <header class="header">
+            <div>
+                <span class="logo">TRACE<span>.</span></span>
+                <span class="logo-sub">Health Reconciliation</span>
+            </div>
+            <span class="tagline">🔍 Know what changed · Know what's missing</span>
+        </header>
+
+        <div class="upload-box" id="uploadBox">
+            <div class="icon">📄</div>
+            <h3>Upload your health records</h3>
+            <p>Drag & drop PDFs, images, or photos of prescriptions, reports, or discharge summaries</p>
+            <button class="upload-btn" id="uploadBtn">Choose Files</button>
+            <input type="file" id="fileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.txt" />
+            <div class="file-list" id="fileList"></div>
+        </div>
+
+        <div class="processing" id="processing">
+            <div class="spinner"></div>
+            <span class="processing-text"><strong>Analyzing</strong> your documents... extracting medications, dates, and instructions</span>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card confirmed">
+                <div class="num" id="statConfirmed">0</div>
+                <div class="label">✅ Confirmed</div>
+            </div>
+            <div class="stat-card conflicts">
+                <div class="num" id="statConflicts">0</div>
+                <div class="label">⚠️ Conflicts</div>
+            </div>
+            <div class="stat-card missing">
+                <div class="num" id="statMissing">0</div>
+                <div class="label">❓ Missing Evidence</div>
+            </div>
+            <div class="stat-card outdated">
+                <div class="num" id="statOutdated">0</div>
+                <div class="label">🕒 Possibly Outdated</div>
+            </div>
+            <div class="stat-card unknown">
+                <div class="num" id="statUnknown">0</div>
+                <div class="label">🔍 Uncertain</div>
+            </div>
+        </div>
+
+        <div id="resultsContainer">
+
+            <div class="section" id="confirmedSection">
+                <div class="section-title">✅ Confirmed Information <span class="badge" id="confirmedBadge">0</span></div>
+                <div id="confirmedList"><div class="empty-state"><div class="icon">📋</div>Upload documents to see confirmed facts</div></div>
+            </div>
+
+            <div class="section" id="conflictsSection">
+                <div class="section-title">⚠️ Conflicts Detected <span class="badge" id="conflictsBadge">0</span></div>
+                <div id="conflictsList"><div class="empty-state"><div class="icon">✅</div>No conflicts found</div></div>
+            </div>
+
+            <div class="section" id="missingSection">
+                <div class="section-title">❓ Missing Evidence <span class="badge" id="missingBadge">0</span></div>
+                <div id="missingList"><div class="empty-state"><div class="icon">🔍</div>No missing evidence detected</div></div>
+            </div>
+
+            <div class="section" id="outdatedSection">
+                <div class="section-title">🕒 Possibly Outdated <span class="badge" id="outdatedBadge">0</span></div>
+                <div id="outdatedList"><div class="empty-state"><div class="icon">📅</div>No outdated information detected</div></div>
+            </div>
+
+            <div class="section" id="unknownSection">
+                <div class="section-title">🔍 Uncertain Information <span class="badge" id="unknownBadge">0</span></div>
+                <div id="unknownList"><div class="empty-state"><div class="icon">❓</div>No uncertain information</div></div>
+            </div>
+
+        </div>
+
+        <div class="section">
+            <div class="section-title">👨‍⚕️ Doctor Handoff <span class="badge">Ready</span></div>
+            <div id="handoffContainer">
+                <div class="empty-state"><div class="icon">📝</div>Upload documents to generate a handoff summary</div>
+            </div>
+            <button class="clear-btn" id="clearAllBtn">🗑️ Clear all data</button>
+        </div>
+
+    </div>
+
+    <script>
+        let state = {
+            documents: [],
+            medications: [],
+            tests: [],
+            instructions: [],
+            conflicts: [],
+            missing: [],
+            outdated: [],
+            unknown: [],
+            confirmed: []
+        };
+
+        const saved = localStorage.getItem('traceState');
+        if (saved) {
+            try {
+                state = JSON.parse(saved);
+            } catch (e) {}
+        }
+
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileList = document.getElementById('fileList');
+        const processing = document.getElementById('processing');
+
+        const statConfirmed = document.getElementById('statConfirmed');
+        const statConflicts = document.getElementById('statConflicts');
+        const statMissing = document.getElementById('statMissing');
+        const statOutdated = document.getElementById('statOutdated');
+        const statUnknown = document.getElementById('statUnknown');
+
+        const confirmedList = document.getElementById('confirmedList');
+        const conflictsList = document.getElementById('conflictsList');
+        const missingList = document.getElementById('missingList');
+        const outdatedList = document.getElementById('outdatedList');
+        const unknownList = document.getElementById('unknownList');
+        const handoffContainer = document.getElementById('handoffContainer');
+
+        const confirmedBadge = document.getElementById('confirmedBadge');
+        const conflictsBadge = document.getElementById('conflictsBadge');
+        const missingBadge = document.getElementById('missingBadge');
+        const outdatedBadge = document.getElementById('outdatedBadge');
+        const unknownBadge = document.getElementById('unknownBadge');
+
+        const clearAllBtn = document.getElementById('clearAllBtn');
+
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFiles(e.target.files);
+                fileInput.value = '';
+            }
+        });
+
+        function handleFiles(files) {
+            let added = 0;
+            for (const file of files) {
+                const exists = state.documents.some(d => d.name === file.name && d.size === file.size);
+                if (exists) continue;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const doc = {
+                        id: Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        content: typeof content === 'string' ? content : 'binary_data',
+                        extracted: false
+                    };
+                    state.documents.push(doc);
+                    saveState();
+                    renderFileList();
+                    setTimeout(() => processDocuments(), 300);
+                };
+                reader.readAsText(file);
+                added++;
+            }
+            if (added === 0) {
+                alert('These documents were already uploaded.');
+            }
+            renderFileList();
+        }
+
+        function renderFileList() {
+            if (state.documents.length === 0) {
+                fileList.innerHTML = '';
+                return;
+            }
+            fileList.innerHTML = state.documents.map((d, i) =>
+                `<span class="file-tag">📄 ${d.name} <span class="remove" data-idx="${i}">×</span></span>`
+            ).join('');
+            document.querySelectorAll('.file-tag .remove').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    state.documents.splice(idx, 1);
+                    saveState();
+                    renderFileList();
+                    processDocuments();
+                });
+            });
+        }
+
+        function processDocuments() {
+            if (state.documents.length === 0) {
+                renderAll();
+                return;
+            }
+
+            processing.classList.add('show');
+            processing.querySelector('.processing-text').innerHTML =
+                `<strong>Analyzing</strong> ${state.documents.length} document(s)... extracting medications, dates, and instructions`;
+
+            setTimeout(() => {
+                runReconciliationEngine();
+                processing.classList.remove('show');
+                renderAll();
+                saveState();
+            }, 1200);
+        }
+
+        function runReconciliationEngine() {
+            state.medications = [];
+            state.tests = [];
+            state.instructions = [];
+            state.conflicts = [];
+            state.missing = [];
+            state.outdated = [];
+            state.unknown = [];
+            state.confirmed = [];
+
+            for (const doc of state.documents) {
+                const text = doc.content || '';
+                const lower = text.toLowerCase();
+
+                const medPatterns = [
+                    { name: 'Metformin', keywords: ['metformin', 'glucophage'] },
+                    { name: 'Amlodipine', keywords: ['amlodipine', 'norvasc'] },
+                    { name: 'Lisinopril', keywords: ['lisinopril', 'prinivil', 'zestril'] },
+                    { name: 'Atorvastatin', keywords: ['atorvastatin', 'lipitor'] },
+                    { name: 'Levothyroxine', keywords: ['levothyroxine', 'synthroid'] },
+                    { name: 'Omeprazole', keywords: ['omeprazole', 'prilosec'] },
+                    { name: 'Metoprolol', keywords: ['metoprolol', 'lopressor'] },
+                    { name: 'Losartan', keywords: ['losartan', 'cozaar'] },
+                    { name: 'Albuterol', keywords: ['albuterol', 'ventolin'] },
+                    { name: 'Prednisone', keywords: ['prednisone', 'deltasone'] },
+                ];
+
+                const medKeywords = ['mg', 'tablet', 'capsule', 'prescription', 'take', 'daily', 'twice', 'once'];
+                const lines = text.split(/[\n\.]/);
+                for (const line of lines) {
+                    const l = line.toLowerCase();
+                    const hasMed = medKeywords.some(k => l.includes(k));
+                    if (hasMed && l.length > 10 && l.length < 200) {
+                        let matched = false;
+                        for (const mp of medPatterns) {
+                            if (mp.keywords.some(k => l.includes(k))) {
+                                const status = l.includes('stop') || l.includes('discontinue') ? 'stopped' :
+                                    l.includes('continue') || l.includes('take') ? 'active' : 'unknown';
+                                const date = extractDate(l) || extractDate(text) || 'Unknown date';
+                                state.medications.push({
+                                    name: mp.name,
+                                    status: status,
+                                    date: date,
+                                    source: doc.name,
+                                    instruction: line.trim().substring(0, 100)
+                                });
+                                matched = true;
+                                break;
+                            }
+                        }
+                        if (!matched && l.match(/\b(mg|tablet|daily|once|twice)\b/)) {
+                            const words = l.split(/\s+/);
+                            let medName = 'Unknown medication';
+                            for (const w of words) {
+                                if (w.length > 4 && !['with', 'from', 'this', 'that', 'your', 'take', 'daily',
+                                        'tablet'
+                                    ].includes(w)) {
+                                    medName = w.charAt(0).toUpperCase() + w.slice(1);
+                                    break;
+                                }
+                            }
+                            const status = l.includes('stop') || l.includes('discontinue') ? 'stopped' :
+                                l.includes('continue') || l.includes('take') ? 'active' : 'unknown';
+                            const date = extractDate(l) || extractDate(text) || 'Unknown date';
+                            state.medications.push({
+                                name: medName,
+                                status: status,
+                                date: date,
+                                source: doc.name,
+                                instruction: line.trim().substring(0, 100)
+                            });
+                        }
+                    }
+                }
+
+                const followPatterns = [
+                    /repeat\s+(\w+)\s+test/i,
+                    /follow[- ]?up\s+in\s+(\d+)\s*(weeks?|months?)/i,
+                    /review\s+(\w+)\s+result/i,
+                    /recheck\s+(\w+)/i,
+                    /next\s+appointment/i,
+                ];
+                for (const pattern of followPatterns) {
+                    const match = text.match(pattern);
+                    if (match) {
+                        state.instructions.push({
+                            text: match[0],
+                            date: extractDate(text) || 'Unknown date',
+                            source: doc.name,
+                            type: 'follow-up'
+                        });
+                    }
+                }
+            }
+
+            const medGroups = {};
+            for (const med of state.medications) {
+                if (!medGroups[med.name]) medGroups[med.name] = [];
+                medGroups[med.name].push(med);
+            }
+            for (const [name, entries] of Object.entries(medGroups)) {
+                if (entries.length > 1) {
+                    const statuses = entries.map(e => e.status);
+                    const hasActive = statuses.includes('active');
+                    const hasStopped = statuses.includes('stopped');
+                    if (hasActive && hasStopped) {
+                        state.conflicts.push({
+                            title: `Medication conflict: ${name}`,
+                            detail: `Records show both "continue" and "stop" instructions for ${name}.`,
+                            sources: entries.map(e => `${e.source} (${e.date})`).join('; '),
+                            type: 'medication'
+                        });
+                    } else if (statuses.includes('unknown') && (hasActive || hasStopped)) {
+                        state.unknown.push({
+                            title: `Uncertain medication status: ${name}`,
+                            detail: `Some records for ${name} have unclear instructions.`,
+                            source: entries.filter(e => e.status === 'unknown').map(e => e.source).join('; ')
+                        });
+                    }
+                }
+            }
+
+            for (const inst of state.instructions) {
+                if (inst.text.toLowerCase().includes('repeat') || inst.text.toLowerCase().includes('follow')) {
+                    const hasMatch = state.tests.some(t =>
+                        t.name && inst.text.toLowerCase().includes(t.name.toLowerCase())
+                    );
+                    if (!hasMatch) {
+                        state.missing.push({
+                            title: `Missing follow-up: "${inst.text}"`,
+                            detail: `A follow-up was mentioned but no corresponding result was found in your records.`,
+                            source: inst.source
+                        });
+                    }
+                }
+            }
+
+            const now = new Date();
+            for (const med of state.medications) {
+                if (med.date && med.date !== 'Unknown date') {
+                    const date = parseDate(med.date);
+                    if (date) {
+                        const monthsDiff = (now - date) / (1000 * 60 * 60 * 24 * 30);
+                        if (monthsDiff > 6 && med.status === 'active') {
+                            state.outdated.push({
+                                title: `Possibly outdated: ${med.name}`,
+                                detail: `This medication was last confirmed ${Math.round(monthsDiff)} months ago.`,
+                                source: med.source
+                            });
+                        }
+                    }
+                }
+            }
+
+            for (const med of state.medications) {
+                if (med.status === 'active' && !state.conflicts.some(c => c.title.includes(med.name))) {
+                    state.confirmed.push({
+                        text: `${med.name} — active medication`,
+                        source: med.source,
+                        date: med.date
+                    });
+                }
+            }
+            if (state.confirmed.length === 0 && state.medications.length > 0) {
+                for (const med of state.medications) {
+                    if (med.status !== 'stopped') {
+                        state.confirmed.push({
+                            text: `${med.name} — appears in your records`,
+                            source: med.source,
+                            date: med.date
+                        });
+                    }
+                }
+            }
+            const seen = new Set();
+            state.confirmed = state.confirmed.filter(c => {
+                const key = c.text + c.source;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        }
+
+        function extractDate(text) {
+            const patterns = [
+                /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i,
+                /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/,
+                /(\d{1,2})[-/](\d{1,2})[-/](\d{4})/,
+            ];
+            for (const pattern of patterns) {
+                const match = text.match(pattern);
+                if (match) return match[0];
+            }
+            return null;
+        }
+
+        function parseDate(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                if (!isNaN(d)) return d;
+                const parts = dateStr.split(/\s+/);
+                if (parts.length === 3) {
+                    const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10,
+                        dec: 11 };
+                    const day = parseInt(parts[0]);
+                    const month = months[parts[1].toLowerCase().substring(0, 3)];
+                    const year = parseInt(parts[2]);
+                    if (day && month !== undefined && year) {
+                        return new Date(year, month, day);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+            return null;
+        }
+
+        function renderAll() {
+            statConfirmed.textContent = state.confirmed.length;
+            statConflicts.textContent = state.conflicts.length;
+            statMissing.textContent = state.missing.length;
+            statOutdated.textContent = state.outdated.length;
+            statUnknown.textContent = state.unknown.length;
+
+            confirmedBadge.textContent = state.confirmed.length;
+            conflictsBadge.textContent = state.conflicts.length;
+            missingBadge.textContent = state.missing.length;
+            outdatedBadge.textContent = state.outdated.length;
+            unknownBadge.textContent = state.unknown.length;
+
+            if (state.confirmed.length === 0) {
+                confirmedList.innerHTML = `<div class="empty-state"><div class="icon">📋</div>Upload documents to see confirmed facts</div>`;
+            } else {
+                confirmedList.innerHTML = state.confirmed.map(c =>
+                    `<div class="confirmed-item">✅ ${c.text} <div class="source">📄 ${c.source} · ${c.date || 'Date unknown'}</div></div>`
+                ).join('');
+            }
+
+            if (state.conflicts.length === 0) {
+                conflictsList.innerHTML = `<div class="empty-state"><div class="icon">✅</div>No conflicts found</div>`;
+            } else {
+                conflictsList.innerHTML = state.conflicts.map(c =>
+                    `<div class="conflict-item">
+                            <div class="title">⚠️ ${c.title}</div>
+                            <div class="detail">${c.detail}</div>
+                            <div class="source">📄 ${c.sources}</div>
+                        </div>`
+                ).join('');
+            }
+
+            if (state.missing.length === 0) {
+                missingList.innerHTML = `<div class="empty-state"><div class="icon">✅</div>No missing evidence detected</div>`;
+            } else {
+                missingList.innerHTML = state.missing.map(m =>
+                    `<div class="missing-item">
+                            <div class="title">❓ ${m.title}</div>
+                            <div class="detail">${m.detail}</div>
+                            <div class="source">📄 ${m.source}</div>
+                        </div>`
+                ).join('');
+            }
+
+            if (state.outdated.length === 0) {
+                outdatedList.innerHTML = `<div class="empty-state"><div class="icon">✅</div>No outdated information detected</div>`;
+            } else {
+                outdatedList.innerHTML = state.outdated.map(o =>
+                    `<div class="outdated-item">🕒 ${o.title} <div class="source">📄 ${o.source}</div></div>`
+                ).join('');
+            }
+
+            if (state.unknown.length === 0) {
+                unknownList.innerHTML = `<div class="empty-state"><div class="icon">✅</div>No uncertain information</div>`;
+            } else {
+                unknownList.innerHTML = state.unknown.map(u =>
+                    `<div class="outdated-item">🔍 ${u.title} <div class="source">📄 ${u.source}</div></div>`
+                ).join('');
+            }
+
+            // Handoff
+            if (state.confirmed.length > 0 || state.conflicts.length > 0 || state.missing.length > 0) {
+                handoffContainer.innerHTML = `
+                            <div class="handoff-box">
+                                <h4>📋 Health Summary for Your Doctor</h4>
+                                <p>
+                                    <strong>Confirmed:</strong> ${state.confirmed.length} facts<br/>
+                                    <strong>Conflicts:</strong> ${state.conflicts.length} medication conflicts detected<br/>
+                                    <strong>Missing:</strong> ${state.missing.length} follow-ups with no results found<br/>
+                                    <strong>Outdated:</strong> ${state.outdated.length} items may need updating
+                                </p>
+                                <p style="margin-top:12px;font-size:13px;color:#2c5282;">
+                                    ⚠️ This is a record audit, not medical advice. Verify all information with your healthcare professional.
+                                </p>
+                                <button class="btn-secondary" onclick="generateHandoff()">📄 Generate Full Handoff</button>
+                            </div>
+                        `;
+            } else {
+                handoffContainer.innerHTML = `<div class="empty-state"><div class="icon">📝</div>Upload documents to generate a handoff summary</div>`;
+            }
+        }
+
+        function generateHandoff() {
+            let text = '=== HEALTH HANDOFF ===\n\n';
+            text += `Generated: ${new Date().toLocaleDateString()}\n\n`;
+
+            text += `--- CONFIRMED (${state.confirmed.length}) ---\n`;
+            state.confirmed.forEach(c => text += `✅ ${c.text} (${c.source})\n`);
+            text += '\n';
+
+            text += `--- CONFLICTS (${state.conflicts.length}) ---\n`;
+            state.conflicts.forEach(c => text += `⚠️ ${c.title}: ${c.detail}\n`);
+            text += '\n';
+
+            text += `--- MISSING (${state.missing.length}) ---\n`;
+            state.missing.forEach(m => text += `❓ ${m.title}\n`);
+            text += '\n';
+
+            text += `--- OUTDATED (${state.outdated.length}) ---\n`;
+            state.outdated.forEach(o => text += `🕒 ${o.title}\n`);
+            text += '\n';
+
+            text += `--- UNKNOWN (${state.unknown.length}) ---\n`;
+            state.unknown.forEach(u => text += `🔍 ${u.title}\n`);
+            text += '\n';
+
+            text += '=== END OF HANDOFF ===\n';
+            text += '⚠️ This is an AI-generated audit. Always verify with your healthcare professional.';
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ Handoff copied to clipboard! Paste it anywhere.');
+            }).catch(() => {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
