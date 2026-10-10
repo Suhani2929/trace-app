@@ -1,180 +1,25 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useMemo, useState } from "react";
+import "./App.css";
 
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
+const API_URL = "http://localhost:5000";
+const EMERGENCY = "112";
 
-import {
-  Container,
-  Box,
-  Typography,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  Button,
-  Chip,
-  LinearProgress,
-  AppBar,
-  Toolbar,
-  Fade,
-  Slide,
-  TextField,
-  Tab,
-  Tabs,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Alert,
-  CircularProgress,
-  IconButton,
-  InputAdornment,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Divider
-} from '@mui/material';
-
-import {
-  CloudUpload,
-  CheckCircle,
-  Warning,
-  Error as ErrorIcon,
-  Schedule,
-  Help,
-  FileUpload,
-  Description,
-  Share,
-  MedicalServices,
-  Security,
-  DeleteSweep,
-  Healing,
-  LocalHospital,
-  Phone,
-  LocationOn,
-  Emergency,
-  Favorite,
-  Science,
-  Person,
-  Lock,
-  Email,
-  Home,
-  Close,
-  Star,
-  Edit,
-  Save,
-  AccountCircle
-} from '@mui/icons-material';
-
-import { motion } from 'framer-motion';
-
-
-// ============================================================
-// THEME
-// ============================================================
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#7C3AED',
-      light: '#A78BFA',
-      dark: '#5B21B6'
-    },
-    secondary: {
-      main: '#EC4899'
-    },
-    success: {
-      main: '#10B981'
-    },
-    warning: {
-      main: '#F59E0B'
-    },
-    error: {
-      main: '#EF4444'
-    },
-    background: {
-      default: '#F3F4F6',
-      paper: '#FFFFFF'
-    }
-  },
-
-  typography: {
-    fontFamily: '"Inter", "Segoe UI", sans-serif'
-  },
-
-  shape: {
-    borderRadius: 16
-  },
-
-  components: {
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: 16,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
-        }
-      }
-    },
-
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-          textTransform: 'none',
-          fontWeight: 600
-        }
-      }
-    },
-
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8
-        }
-      }
-    },
-
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 16
-        }
-      }
-    }
-  }
-});
-
-
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-const EMERGENCY_NUMBER = '112';
-
-
-// ============================================================
-// FILE CONVERSION
-// ============================================================
-
-const toBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-
-    reader.readAsDataURL(file);
-  });
+const emptyProfile = {
+  name: "",
+  email: "",
+  password: "",
+  age: "",
+  gender: "",
+  address: "",
+  city: "",
+  conditions: "",
+  allergies: "",
+  medications: "",
+  bloodGroup: "",
+  emergencyContact: ""
 };
 
-
-// ============================================================
-// DISTANCE
-// ============================================================
-
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
+function distanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
 
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -186,4035 +31,2246 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) ** 2;
 
-  const c =
-    2 * Math.atan2(
+  return (
+    R *
+    2 *
+    Math.atan2(
       Math.sqrt(a),
       Math.sqrt(1 - a)
-    );
-
-  return R * c;
-};
-
-
-// ============================================================
-// LOCAL SYMPTOM TRIAGE
-// ============================================================
-
-const classifySymptomsLocally = (input) => {
-  const s = input
-    .toLowerCase()
-    .replace(/[.,!?]/g, ' ');
-
-  const severePatterns = [
-    'chest pain',
-    'heart pain',
-    'pain in my heart',
-    'chest pressure',
-    'pressure in chest',
-    'chest tightness',
-    'chest squeezing',
-    'chest discomfort',
-    'crushing chest pain',
-
-    'pain spreading to arm',
-    'pain spreading to jaw',
-    'pain spreading to back',
-    'pain in arm with chest pain',
-    'jaw pain with chest pain',
-
-    'cannot breathe',
-    "can't breathe",
-    'difficulty breathing',
-    'difficulty in breathing',
-    'severe shortness of breath',
-    'trouble breathing',
-    'unable to breathe',
-
-    'face drooping',
-    'one sided weakness',
-    'one side weakness',
-    'weakness on one side',
-    'slurred speech',
-    'cannot speak',
-    'unable to speak',
-    'difficulty speaking',
-
-    'loss of consciousness',
-    'unconscious',
-    'not responding',
-    'seizure',
-    'convulsions',
-
-    'severe bleeding',
-    'vomiting blood',
-    'coughing blood',
-
-    'anaphylaxis',
-    'severe allergic reaction',
-    'swelling throat',
-    'throat closing',
-
-    'blue lips',
-    'turning blue'
-  ];
-
-  const moderatePatterns = [
-    'shortness of breath',
-    'breathlessness',
-    'high fever',
-    'persistent fever',
-    'persistent vomiting',
-    'repeated vomiting',
-    'persistent diarrhea',
-    'dehydration',
-    'severe headache',
-    'repeated dizziness',
-    'persistent abdominal pain',
-    'worsening pain',
-    'moderate pain',
-    'fainting',
-    'palpitations',
-    'rapid heartbeat',
-    'irregular heartbeat'
-  ];
-
-  if (
-    severePatterns.some(
-      pattern => s.includes(pattern)
     )
-  ) {
-    return {
-      severity: 'severe',
-      emergency: true
-    };
-  }
-
-  if (
-    moderatePatterns.some(
-      pattern => s.includes(pattern)
-    )
-  ) {
-    return {
-      severity: 'moderate',
-      emergency: false
-    };
-  }
-
-  return {
-    severity: 'mild',
-    emergency: false
-  };
-};
-
-
-// ============================================================
-// APP
-// ============================================================
+  );
+}
 
 function App() {
+  const [profile, setProfile] =
+    useState(emptyProfile);
 
-  // ==========================================================
-  // AUTH / PROFILE
-  // ==========================================================
+  const [form, setForm] =
+    useState(emptyProfile);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] =
+    useState(false);
 
-  const [showLogin, setShowLogin] = useState(true);
+  const [authMode, setAuthMode] =
+    useState("signup");
 
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [symptoms, setSymptoms] =
+    useState("");
 
-  const [editingProfile, setEditingProfile] = useState(false);
+  const [result, setResult] =
+    useState(null);
 
-  const [user, setUser] = useState({
-    name: '',
-    email: '',
-    address: '',
-    city: ''
-  });
+  const [loading, setLoading] =
+    useState(false);
 
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    email: '',
-    address: '',
-    city: ''
-  });
+  const [profileOpen, setProfileOpen] =
+    useState(false);
 
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const [doctorOpen, setDoctorOpen] =
+    useState(false);
 
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
-  const [signupAddress, setSignupAddress] = useState('');
-  const [signupCity, setSignupCity] = useState('');
+  const [places, setPlaces] =
+    useState([]);
 
+  const [placeLoading, setPlaceLoading] =
+    useState(false);
 
-  // ==========================================================
-  // RECORDS
-  // ==========================================================
+  const [radius, setRadius] =
+    useState(5);
 
-  const [documents, setDocuments] = useState([]);
-  const [processing, setProcessing] = useState(false);
-  const [results, setResults] = useState(null);
-  const [uploaded, setUploaded] = useState(false);
+  const [locationMode, setLocationMode] =
+    useState("gps");
 
+  const [customLocation, setCustomLocation] =
+    useState("");
 
-  // ==========================================================
-  // SYMPTOMS
-  // ==========================================================
+  const [coords, setCoords] =
+    useState(null);
 
-  const [symptoms, setSymptoms] = useState('');
-  const [symptomResult, setSymptomResult] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  const [locationLabel, setLocationLabel] =
+    useState("");
 
-
-  // ==========================================================
-  // UI
-  // ==========================================================
-
-  const [tabValue, setTabValue] = useState(0);
-  const [showHospitals, setShowHospitals] = useState(false);
-
-
-  // ==========================================================
-  // HOSPITALS
-  // ==========================================================
-
-  const [nearbyHospitals, setNearbyHospitals] = useState([]);
-  const [loadingHospitals, setLoadingHospitals] = useState(false);
-
-
-// ============================================================
-// LOAD SAVED USER + RECORDS
-// ============================================================
+  const [locationError, setLocationError] =
+    useState("");
 
   useEffect(() => {
+    const saved =
+      localStorage.getItem("TRACE_PROFILE");
 
-    const savedUser =
-      localStorage.getItem('trace_user');
-
-    const savedDocs =
-      localStorage.getItem('trace_documents');
-
-    const savedResults =
-      localStorage.getItem('trace_results');
-
-
-    if (savedUser) {
-      try {
-        const parsed =
-          JSON.parse(savedUser);
-
-        setUser(parsed);
-
-        setProfileForm(parsed);
-
-        setIsLoggedIn(true);
-
-      } catch (_) {}
-    }
-
-
-    if (savedDocs) {
-      try {
-        const parsed =
-          JSON.parse(savedDocs);
-
-        setDocuments(parsed);
-
-        if (parsed.length > 0) {
-          setUploaded(true);
-        }
-
-      } catch (_) {}
-    }
-
-
-    if (savedResults) {
-      try {
-        setResults(
-          JSON.parse(savedResults)
-        );
-      } catch (_) {}
-    }
-
-  }, []);
-
-
-// ============================================================
-// SAVE USER
-// ============================================================
-
-  useEffect(() => {
-
-    if (isLoggedIn) {
-
-      localStorage.setItem(
-        'trace_user',
-        JSON.stringify(user)
-      );
-
-    }
-
-  }, [user, isLoggedIn]);
-
-
-// ============================================================
-// SAVE DOCUMENTS
-// ============================================================
-
-  useEffect(() => {
-
-    localStorage.setItem(
-      'trace_documents',
-      JSON.stringify(documents)
-    );
-
-  }, [documents]);
-
-
-// ============================================================
-// SAVE RESULTS
-// ============================================================
-
-  useEffect(() => {
-
-    if (results) {
-
-      localStorage.setItem(
-        'trace_results',
-        JSON.stringify(results)
-      );
-
-    }
-
-  }, [results]);
-
-
-// ============================================================
-// LOGIN
-// ============================================================
-
-  const handleLogin = () => {
-
-    if (
-      !loginEmail ||
-      !loginPassword
-    ) {
-
-      alert(
-        'Please enter email and password'
-      );
-
+    if (!saved) {
       return;
     }
-
-
-    const savedUser =
-      localStorage.getItem('trace_user');
-
-
-    if (savedUser) {
-
-      try {
-
-        const parsed =
-          JSON.parse(savedUser);
-
-        setUser({
-          ...parsed,
-          email: loginEmail
-        });
-
-        setProfileForm({
-          ...parsed,
-          email: loginEmail
-        });
-
-      } catch (_) {
-
-        setUser({
-          name: '',
-          email: loginEmail,
-          address: '',
-          city: ''
-        });
-
-      }
-
-    } else {
-
-      setUser({
-        name: '',
-        email: loginEmail,
-        address: '',
-        city: ''
-      });
-
-    }
-
-    setIsLoggedIn(true);
-  };
-
-
-// ============================================================
-// SIGN UP
-// ============================================================
-
-  const handleSignup = () => {
-
-    if (
-      !signupName ||
-      !signupEmail ||
-      !signupPassword ||
-      !signupAddress ||
-      !signupCity
-    ) {
-
-      alert(
-        'Please fill all fields'
-      );
-
-      return;
-    }
-
-
-    const newUser = {
-
-      name: signupName,
-
-      email: signupEmail,
-
-      address: signupAddress,
-
-      city: signupCity
-
-    };
-
-
-    setUser(newUser);
-
-    setProfileForm(newUser);
-
-    setIsLoggedIn(true);
-
-  };
-
-
-// ============================================================
-// PROFILE
-// ============================================================
-
-  const openProfile = () => {
-
-    setProfileForm({
-      ...user
-    });
-
-    setEditingProfile(false);
-
-    setProfileOpen(true);
-  };
-
-
-  const saveProfile = () => {
-
-    if (
-      !profileForm.name ||
-      !profileForm.email ||
-      !profileForm.address ||
-      !profileForm.city
-    ) {
-
-      alert(
-        'Please fill all profile fields.'
-      );
-
-      return;
-    }
-
-
-    setUser({
-      ...profileForm
-    });
-
-
-    localStorage.setItem(
-      'trace_user',
-      JSON.stringify(profileForm)
-    );
-
-
-    setEditingProfile(false);
-
-    alert(
-      'Profile updated successfully.'
-    );
-
-  };
-
-
-// ============================================================
-// LOGOUT
-// ============================================================
-
-  const handleLogout = () => {
-
-    /*
-      IMPORTANT:
-      We do NOT clear localStorage here.
-      Your profile + records remain saved.
-    */
-
-    setIsLoggedIn(false);
-
-    setProfileOpen(false);
-
-    setNearbyHospitals([]);
-
-  };
-
-
-// ============================================================
-// UPLOAD RECORDS
-// ============================================================
-
-  const handleUpload = async (e) => {
-
-    const files =
-      Array.from(
-        e.target.files || []
-      );
-
-    if (!files.length) {
-      return;
-    }
-
-
-    const metadata =
-      files.map(file => ({
-        name: file.name,
-        type: file.type,
-        size: file.size
-      }));
-
-
-    setDocuments(prev => [
-      ...prev,
-      ...metadata
-    ]);
-
-    setUploaded(true);
-
-    setProcessing(true);
-
 
     try {
+      const savedProfile =
+        JSON.parse(saved);
 
-      const docContents =
-        await Promise.all(
+      const cleanProfile = {
+        ...emptyProfile,
+        ...savedProfile
+      };
 
-          files.map(
-            async file => {
-
-              if (
-                file.type ===
-                  'text/plain' ||
-                file.name
-                  .toLowerCase()
-                  .endsWith('.txt')
-              ) {
-
-                return new Promise(
-                  (resolve, reject) => {
-
-                    const reader =
-                      new FileReader();
-
-                    reader.onload =
-                      () => {
-
-                        resolve({
-
-                          name:
-                            file.name,
-
-                          content:
-                            reader.result,
-
-                          type:
-                            file.type ||
-                            'text/plain'
-
-                        });
-
-                      };
-
-                    reader.onerror =
-                      reject;
-
-                    reader.readAsText(
-                      file
-                    );
-                  }
-                );
-
-              }
-
-
-              return {
-
-                name:
-                  file.name,
-
-                content:
-                  await toBase64(
-                    file
-                  ),
-
-                type:
-                  file.type
-
-              };
-
-            }
-          )
-
-        );
-
-
-      const response =
-        await axios.post(
-
-          'http://localhost:5000/api/process',
-
-          {
-            documents:
-              docContents
-          }
-
-        );
-
-
-      setResults(
-        response.data
-      );
-
-
+      setProfile(cleanProfile);
+      setForm(cleanProfile);
+      setLoggedIn(true);
     } catch (error) {
-
       console.error(
-        'Processing failed:',
+        "TRACE profile error:",
         error
       );
 
-
-      alert(
-        'Document processing failed. Make sure the backend is running on port 5000.'
+      localStorage.removeItem(
+        "TRACE_PROFILE"
       );
+    }
+  }, []);
 
-    } finally {
+  function saveProfile(data) {
+    const clean = {
+      ...emptyProfile,
+      ...data
+    };
 
-      setProcessing(false);
+    setProfile(clean);
+    setForm(clean);
 
+    localStorage.setItem(
+      "TRACE_PROFILE",
+      JSON.stringify(clean)
+    );
+  }
+
+  function logout() {
+    setLoggedIn(false);
+    setResult(null);
+  }
+
+  function createAccount() {
+    if (
+      !form.name ||
+      !form.email ||
+      !form.password ||
+      !form.age
+    ) {
+      alert(
+        "Please enter name, email, password and age."
+      );
+      return;
     }
 
-  };
+    saveProfile(form);
+    setLoggedIn(true);
+  }
 
+  function login() {
+    const saved =
+      localStorage.getItem(
+        "TRACE_PROFILE"
+      );
 
-// ============================================================
-// SYMPTOM CHECK
-// ============================================================
+    if (!saved) {
+      alert(
+        "No local TRACE account found. Please create a profile first."
+      );
+      return;
+    }
 
-  const checkSymptoms =
-    async () => {
+    try {
+      const savedProfile =
+        JSON.parse(saved);
 
-      if (!symptoms.trim()) {
-
+      if (
+        savedProfile.email !== form.email ||
+        savedProfile.password !== form.password
+      ) {
         alert(
-          'Please describe your symptoms'
+          "Email or password is incorrect."
         );
-
         return;
       }
 
-
-      setAiLoading(true);
-
-      setSymptomResult(null);
-
-
-      const localAssessment =
-        classifySymptomsLocally(
-          symptoms
-        );
-
-
-      try {
-
-        // ====================================================
-        // HEALTH INFO
-        // ====================================================
-
-        let govData = null;
-
-        try {
-
-          const healthResponse =
-            await axios.post(
-
-              'http://localhost:5000/api/health-info',
-
-              {
-                symptom:
-                  symptoms
-              },
-
-              {
-                timeout:
-                  6000
-              }
-
-            );
-
-
-          if (
-            healthResponse.data?.success
-          ) {
-
-            govData =
-              healthResponse
-                .data.data;
-
-          }
-
-        } catch (healthError) {
-
-          console.warn(
-            'Government health API unavailable.'
-          );
-
-        }
-
-
-        // ====================================================
-        // AI ANALYSIS
-        // ====================================================
-
-        let result = {};
-
-        try {
-
-          const aiResponse =
-            await axios.post(
-
-              'http://localhost:5000/api/analyze-symptoms',
-
-              {
-                symptoms
-              },
-
-              {
-                timeout:
-                  8000
-              }
-
-            );
-
-
-          result =
-            aiResponse.data?.data ||
-            {};
-
-        } catch (aiError) {
-
-          console.warn(
-            'AI backend unavailable. Using local triage.'
-          );
-
-        }
-
-
-        // ====================================================
-        // SAFETY OVERRIDE
-        // ====================================================
-
-        if (
-          localAssessment.severity ===
-          'severe'
-        ) {
-
-          result.severity =
-            'severe';
-
-          result.emergency =
-            true;
-
-
-          result.remedies = [
-
-            'Do not ignore these symptoms.',
-
-            'Seek emergency medical attention immediately.'
-
-          ];
-
-
-          result.advice =
-            `These symptoms may indicate a medical emergency. Call ${EMERGENCY_NUMBER} or go to the nearest emergency department immediately.`;
-
-        }
-
-        else if (
-
-          localAssessment.severity ===
-            'moderate' &&
-
-          result.severity !==
-            'severe'
-
-        ) {
-
-          result.severity =
-            'moderate';
-
-        }
-
-        else if (
-          !result.severity
-        ) {
-
-          result.severity =
-            'mild';
-
-        }
-
-
-        result.govData =
-          govData;
-
-        result.symptom =
-          symptoms;
-
-
-        if (
-          !result.remedies
-        ) {
-
-          result.remedies = [
-
-            'Rest and stay hydrated.',
-
-            'Monitor your symptoms.'
-
-          ];
-
-        }
-
-
-        if (
-          !result.advice
-        ) {
-
-          result.advice =
-            'If your symptoms persist or worsen, consult a healthcare professional.';
-
-        }
-
-
-        setSymptomResult(
-          result
-        );
-
-
-        // ====================================================
-        // AUTOMATIC HOSPITAL SEARCH
-        // ====================================================
-
-        if (
-          result.emergency ||
-          result.severity ===
-            'severe'
-        ) {
-
-          setShowHospitals(
-            true
-          );
-
-          loadNearbyHospitals();
-
-        }
-
-
-      } catch (error) {
-
-        console.error(
-          'Symptom processing error:',
-          error
-        );
-
-
-        setSymptomResult({
-
-          severity:
-            localAssessment.severity,
-
-          emergency:
-            localAssessment.emergency,
-
-          remedies:
-
-            localAssessment.severity ===
-            'severe'
-
-              ? [
-
-                  'Do not ignore these symptoms.',
-
-                  'Seek emergency medical attention immediately.'
-
-                ]
-
-              : [
-
-                  'Rest and stay hydrated.',
-
-                  'Monitor your symptoms.'
-
-                ],
-
-          advice:
-
-            localAssessment.severity ===
-            'severe'
-
-              ? `Possible medical emergency. Call ${EMERGENCY_NUMBER} immediately.`
-
-              : 'If symptoms persist or worsen, consult a healthcare professional.',
-
-          symptom:
-            symptoms,
-
-          govData:
-            null
-
-        });
-
-
-        if (
-          localAssessment.emergency
-        ) {
-
-          setShowHospitals(
-            true
-          );
-
-          loadNearbyHospitals();
-
-        }
-
-      }
-
-
-      finally {
-
-        setAiLoading(false);
-
-      }
-
-    };
-
-
-// ============================================================
-// HOSPITAL SEARCH
-// ============================================================
-
-  const loadNearbyHospitals =
-    async () => {
-
-      setLoadingHospitals(
-        true
+      setProfile(savedProfile);
+      setForm(savedProfile);
+      setLoggedIn(true);
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        "Unable to load your TRACE profile."
       );
-
-
-      try {
-
-        let lat = null;
-        let lon = null;
-
-
-        // ====================================================
-        // 1. TRY SAVED ADDRESS
-        // ====================================================
-
-        const addressText =
-          [
-
-            user.address,
-
-            user.city,
-
-            'India'
-
-          ]
-
-            .filter(Boolean)
-
-            .join(', ');
-
-
-        if (addressText) {
-
-          try {
-
-            const geoResponse =
-              await axios.get(
-
-                'https://nominatim.openstreetmap.org/search',
-
-                {
-
-                  params: {
-
-                    q:
-                      addressText,
-
-                    format:
-                      'jsonv2',
-
-                    limit:
-                      1
-
-                  },
-
-                  headers: {
-
-                    Accept:
-                      'application/json'
-
-                  },
-
-                  timeout:
-                    8000
-
-                }
-
-              );
-
-
-            if (
-              geoResponse.data?.length
-            ) {
-
-              lat =
-                parseFloat(
-                  geoResponse
-                    .data[0].lat
-                );
-
-              lon =
-                parseFloat(
-                  geoResponse
-                    .data[0].lon
-                );
-
-            }
-
-          } catch (addressError) {
-
-            console.warn(
-              'Full address geocoding failed.'
-            );
-
-          }
-
-        }
-
-
-        // ====================================================
-        // 2. TRY CITY ONLY
-        // ====================================================
-
-        if (
-          lat === null ||
-          lon === null
-        ) {
-
-          if (user.city) {
-
-            try {
-
-              const cityResponse =
-                await axios.get(
-
-                  'https://nominatim.openstreetmap.org/search',
-
-                  {
-
-                    params: {
-
-                      q:
-                        `${user.city}, India`,
-
-                      format:
-                        'jsonv2',
-
-                      limit:
-                        1
-
-                    },
-
-                    headers: {
-
-                      Accept:
-                        'application/json'
-
-                    },
-
-                    timeout:
-                      8000
-
-                  }
-
-                );
-
-
-              if (
-                cityResponse.data?.length
-              ) {
-
-                lat =
-                  parseFloat(
-                    cityResponse
-                      .data[0].lat
-                  );
-
-                lon =
-                  parseFloat(
-                    cityResponse
-                      .data[0].lon
-                  );
-
-              }
-
-            } catch (_) {
-
-              console.warn(
-                'City geocoding failed.'
-              );
-
-            }
-
-          }
-
-        }
-
-
-        // ====================================================
-        // 3. LAST FALLBACK: BROWSER LOCATION
-        // ====================================================
-
-        if (
-          (lat === null ||
-            lon === null) &&
-          navigator.geolocation
-        ) {
-
-          try {
-
-            const position =
-              await new Promise(
-                (resolve, reject) => {
-
-                  navigator.geolocation.getCurrentPosition(
-
-                    resolve,
-
-                    reject,
-
-                    {
-                      enableHighAccuracy:
-                        true,
-
-                      timeout:
-                        7000,
-
-                      maximumAge:
-                        300000
-
-                    }
-
-                  );
-
-                }
-              );
-
-
-            lat =
-              position.coords.latitude;
-
-            lon =
-              position.coords.longitude;
-
-          } catch (_) {
-
-            console.warn(
-              'Browser location unavailable.'
-            );
-
-          }
-
-        }
-
-
-        // ====================================================
-        // NO LOCATION
-        // ====================================================
-
-        if (
-          lat === null ||
-          lon === null
-        ) {
-
-          alert(
-
-            'I could not locate your saved address. Please edit your Profile and enter a proper address + city.'
-
-          );
-
-          return;
-
-        }
-
-
-        // ====================================================
-        // SEARCH 15 KM
-        // ====================================================
-
-        const overpassQuery = `
-
-          [out:json][timeout:30];
-
-          (
-
-            nwr["amenity"="hospital"]
-              (around:15000,${lat},${lon});
-
-            nwr["amenity"="clinic"]
-              (around:15000,${lat},${lon});
-
-            nwr["healthcare"="hospital"]
-              (around:15000,${lat},${lon});
-
-            nwr["healthcare"="clinic"]
-              (around:15000,${lat},${lon});
-
-          );
-
-          out center tags;
-
-        `;
-
-
-        const hospitalResponse =
-          await axios.post(
-
-            'https://overpass-api.de/api/interpreter',
-
-            overpassQuery,
-
-            {
-
-              headers: {
-
-                'Content-Type':
-                  'text/plain'
-
-              },
-
-              timeout:
-                30000
-
-            }
-
-          );
-
-
-        const places =
-          hospitalResponse.data
-            ?.elements || [];
-
-
-        const formatted =
-          places
-
-            .map(
-              place => {
-
-                const placeLat =
-                  place.lat ??
-                  place.center?.lat;
-
-                const placeLon =
-                  place.lon ??
-                  place.center?.lon;
-
-
-                if (
-                  placeLat == null ||
-                  placeLon == null
-                ) {
-
-                  return null;
-
-                }
-
-
-                const tags =
-                  place.tags || {};
-
-
-                const distance =
-                  calculateDistance(
-
-                    lat,
-
-                    lon,
-
-                    placeLat,
-
-                    placeLon
-
-                  );
-
-
-                return {
-
-                  id:
-                    `${place.type}-${place.id}`,
-
-                  name:
-
-                    tags.name ||
-
-                    tags['name:en'] ||
-
-                    'Medical Facility',
-
-
-                  address:
-
-                    tags['addr:full'] ||
-
-                    [
-
-                      tags['addr:housenumber'],
-
-                      tags['addr:street'],
-
-                      tags['addr:suburb'],
-
-                      tags['addr:city']
-
-                    ]
-
-                      .filter(Boolean)
-
-                      .join(', ') ||
-
-                    'Address unavailable',
-
-
-                  phone:
-
-                    tags.phone ||
-
-                    tags['contact:phone'] ||
-
-                    'Phone not available',
-
-
-                  emergency:
-
-                    tags.emergency ===
-                    'yes'
-
-                      ? 'Emergency facility'
-
-                      : '',
-
-
-                  rating:
-                    'Not available',
-
-
-                  type:
-
-                    (
-                      tags.amenity ===
-                        'clinic' ||
-                      tags.healthcare ===
-                        'clinic'
-                    )
-
-                      ? 'Clinic'
-
-                      : 'Hospital',
-
-
-                  distance
-
-                };
-
-              }
-            )
-
-            .filter(Boolean)
-
-
-            // Remove duplicates
-            .filter(
-              (item, index, arr) =>
-                index ===
-                arr.findIndex(
-                  x =>
-                    x.name
-                      .toLowerCase() ===
-                    item.name
-                      .toLowerCase()
-                )
-            )
-
-
-            .sort(
-              (a, b) =>
-                a.distance -
-                b.distance
-            );
-
-
-        setNearbyHospitals(
-          formatted
-        );
-
-
-        setShowHospitals(
-          true
-        );
-
-
-        if (
-          formatted.length ===
-          0
-        ) {
-
-          alert(
-            'No hospitals or clinics found within 15 km.'
-          );
-
-        }
-
-      }
-
-
-      catch (error) {
-
-        console.error(
-          'Hospital search failed:',
-          error
-        );
-
-
-        alert(
-          'Hospital search is temporarily unavailable. Please try again.'
-        );
-
-      }
-
-
-      finally {
-
-        setLoadingHospitals(
-          false
-        );
-
-      }
-
-    };
-
-
-// ============================================================
-// CLEAR RECORDS
-// ============================================================
-
-  const clearAllData = () => {
-
-    if (
-      window.confirm(
-        'Clear uploaded documents and analysis results?'
-      )
-    ) {
-
-      setDocuments([]);
-
-      setResults(null);
-
-      setUploaded(false);
-
-      localStorage.removeItem(
-        'trace_documents'
-      );
-
-      localStorage.removeItem(
-        'trace_results'
-      );
-
     }
-
-  };
-
-
-// ============================================================
-// REMOVE DOCUMENT
-// ============================================================
-
-  const removeFile =
-    (index) => {
-
-      const newDocs =
-        documents.filter(
-          (_, i) =>
-            i !== index
-        );
-
-
-      setDocuments(
-        newDocs
-      );
-
-
-      if (
-        newDocs.length ===
-        0
-      ) {
-
-        setResults(null);
-
-        setUploaded(false);
-
-        localStorage.removeItem(
-          'trace_results'
-        );
-
-      }
-
-    };
-
-
-// ============================================================
-// EMOJI
-// ============================================================
-
-  const getSeverityEmoji =
-    severity => {
-
-      if (
-        severity ===
-        'severe'
-      ) {
-        return '🚨';
-      }
-
-      if (
-        severity ===
-        'moderate'
-      ) {
-        return '⚠️';
-      }
-
-      return '✅';
-
-    };
-
-
-// ============================================================
-// LOGIN PAGE
-// ============================================================
-
-  if (!isLoggedIn) {
-
-    return (
-
-      <ThemeProvider
-        theme={theme}
-      >
-
-        <CssBaseline />
-
-        <Box
-
-          sx={{
-
-            minHeight:
-              '100vh',
-
-            display:
-              'flex',
-
-            alignItems:
-              'center',
-
-            justifyContent:
-              'center',
-
-            background:
-              'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-
-            p: 2
-
-          }}
-
-        >
-
-          <motion.div
-
-            initial={{
-              opacity: 0,
-              y: 50
-            }}
-
-            animate={{
-              opacity: 1,
-              y: 0
-            }}
-
-            transition={{
-              duration: 0.5
-            }}
-
-            style={{
-              width: '100%',
-              maxWidth: 450
-            }}
-
-          >
-
-            <Paper
-              sx={{
-                p: 4
-              }}
-            >
-
-              <Box
-                sx={{
-                  textAlign:
-                    'center',
-                  mb: 4
-                }}
-              >
-
-                <MedicalServices
-
-                  sx={{
-                    fontSize: 48,
-                    color:
-                      '#7C3AED'
-                  }}
-
-                />
-
-
-                <Typography
-
-                  variant="h4"
-
-                  sx={{
-
-                    fontWeight:
-                      700,
-
-                    color:
-                      '#7C3AED'
-
-                  }}
-
-                >
-
-                  TRACE
-
-                </Typography>
-
-
-                <Typography
-                  color="text.secondary"
-                >
-
-                  Your Health. Reconciled.
-
-                </Typography>
-
-              </Box>
-
-
-              <Tabs
-
-                value={
-                  showLogin
-                    ? 0
-                    : 1
-                }
-
-                onChange={
-                  (_, v) =>
-                    setShowLogin(
-                      v === 0
-                    )
-                }
-
-                centered
-
-                sx={{
-                  mb: 3
-                }}
-
-              >
-
-                <Tab
-                  label="Login"
-                />
-
-                <Tab
-                  label="Sign Up"
-                />
-
-              </Tabs>
-
-
-              {showLogin ? (
-
-                <Box>
-
-                  <TextField
-
-                    fullWidth
-
-                    label="Email"
-
-                    type="email"
-
-                    value={
-                      loginEmail
-                    }
-
-                    onChange={
-                      e =>
-                        setLoginEmail(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 2
-                    }}
-
-                    InputProps={{
-
-                      startAdornment:
-
-                        <InputAdornment
-                          position="start"
-                        >
-
-                          <Email />
-
-                        </InputAdornment>
-
-                    }}
-
-                  />
-
-
-                  <TextField
-
-                    fullWidth
-
-                    label="Password"
-
-                    type="password"
-
-                    value={
-                      loginPassword
-                    }
-
-                    onChange={
-                      e =>
-                        setLoginPassword(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 3
-                    }}
-
-                    InputProps={{
-
-                      startAdornment:
-
-                        <InputAdornment
-                          position="start"
-                        >
-
-                          <Lock />
-
-                        </InputAdornment>
-
-                    }}
-
-                  />
-
-
-                  <Button
-
-                    fullWidth
-
-                    variant="contained"
-
-                    size="large"
-
-                    onClick={
-                      handleLogin
-                    }
-
-                  >
-
-                    Login
-
-                  </Button>
-
-
-                  <Typography
-
-                    variant="caption"
-
-                    color="text.secondary"
-
-                    sx={{
-
-                      display:
-                        'block',
-
-                      mt: 2,
-
-                      textAlign:
-                        'center'
-
-                    }}
-
-                  >
-
-                    Demo: any email/password
-
-                  </Typography>
-
-                </Box>
-
-              ) : (
-
-                <Box>
-
-                  <TextField
-
-                    fullWidth
-
-                    label="Full Name"
-
-                    value={
-                      signupName
-                    }
-
-                    onChange={
-                      e =>
-                        setSignupName(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 2
-                    }}
-
-                    InputProps={{
-
-                      startAdornment:
-
-                        <InputAdornment
-                          position="start"
-                        >
-
-                          <Person />
-
-                        </InputAdornment>
-
-                    }}
-
-                  />
-
-
-                  <TextField
-
-                    fullWidth
-
-                    label="Email"
-
-                    value={
-                      signupEmail
-                    }
-
-                    onChange={
-                      e =>
-                        setSignupEmail(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 2
-                    }}
-
-                  />
-
-
-                  <TextField
-
-                    fullWidth
-
-                    label="Password"
-
-                    type="password"
-
-                    value={
-                      signupPassword
-                    }
-
-                    onChange={
-                      e =>
-                        setSignupPassword(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 2
-                    }}
-
-                  />
-
-
-                  <TextField
-
-                    fullWidth
-
-                    label="Home Address"
-
-                    value={
-                      signupAddress
-                    }
-
-                    onChange={
-                      e =>
-                        setSignupAddress(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 2
-                    }}
-
-                  />
-
-
-                  <TextField
-
-                    fullWidth
-
-                    label="City"
-
-                    value={
-                      signupCity
-                    }
-
-                    onChange={
-                      e =>
-                        setSignupCity(
-                          e.target.value
-                        )
-                    }
-
-                    sx={{
-                      mb: 3
-                    }}
-
-                  />
-
-
-                  <Button
-
-                    fullWidth
-
-                    variant="contained"
-
-                    size="large"
-
-                    onClick={
-                      handleSignup
-                    }
-
-                  >
-
-                    Create Account
-
-                  </Button>
-
-                </Box>
-
-              )}
-
-            </Paper>
-
-          </motion.div>
-
-        </Box>
-
-      </ThemeProvider>
-
-    );
-
   }
 
+  async function analyzeSymptoms() {
+    const symptomText =
+      symptoms.trim();
 
-// ============================================================
-// MAIN APP
-// ============================================================
+    if (!symptomText) {
+      alert(
+        "Please describe your symptoms first."
+      );
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+
+    try {
+      console.log(
+        "TRACE: Starting symptom analysis..."
+      );
+
+      const response =
+        await fetch(
+          `${API_URL}/api/analyze-symptoms`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+              symptoms: symptomText,
+              profile: profile
+            })
+          }
+        );
+
+      console.log(
+        "TRACE: Backend status:",
+        response.status
+      );
+
+      const data =
+        await response.json();
+
+      console.log(
+        "TRACE: Backend result:",
+        data
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Backend analysis failed."
+        );
+      }
+
+      setResult(data);
+    } catch (error) {
+      console.error(
+        "TRACE ANALYSIS ERROR:",
+        error
+      );
+
+      alert(
+        `TRACE could not analyze the symptoms.\n\n${error.message}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function getGPS() {
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationLabel("");
+
+      setLocationError(
+        "GPS is not supported by this browser. Please use Profile address or Other location."
+      );
+
+      return;
+    }
+
+    setLocationLabel(
+      "Detecting your location..."
+    );
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const location = {
+          lat:
+            position.coords.latitude,
+
+          lon:
+            position.coords.longitude
+        };
+
+        console.log(
+          "TRACE GPS LOCATION:",
+          location
+        );
+
+        setCoords(location);
+        setLocationMode("gps");
+
+        setLocationLabel(
+          "Your current location"
+        );
+
+        setLocationError("");
+      },
+
+      error => {
+        console.error(
+          "TRACE GPS ERROR:",
+          error.code,
+          error.message
+        );
+
+        let message =
+          "Could not detect your current location.";
+
+        if (error.code === 1) {
+          message =
+            "Location permission was denied. Click the 🔒 icon beside localhost:3000 → Location → Allow, then refresh the page.";
+        }
+
+        if (error.code === 2) {
+          message =
+            "Your device could not determine a GPS location. Try Profile address or Other location.";
+        }
+
+        if (error.code === 3) {
+          message =
+            "Location detection timed out. Try again or use Profile address.";
+        }
+
+        setLocationLabel("");
+        setLocationError(message);
+      },
+
+      {
+        enableHighAccuracy: false,
+        timeout: 15000,
+        maximumAge: 300000
+      }
+    );
+  }
+
+  async function geocodeLocation(
+    query
+  ) {
+    const response =
+      await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&q=${encodeURIComponent(
+          query
+        )}`
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "Location service unavailable."
+      );
+    }
+
+    const data =
+      await response.json();
+
+    if (!data.length) {
+      throw new Error(
+        "Location not found."
+      );
+    }
+
+    return {
+      lat: Number(data[0].lat),
+      lon: Number(data[0].lon),
+      label:
+        data[0].display_name
+    };
+  }
+
+  async function findHealthcare() {
+    setPlaceLoading(true);
+    setLocationError("");
+
+    try {
+      let origin = null;
+
+      if (locationMode === "gps") {
+        if (!coords) {
+          origin =
+            await new Promise(
+              (resolve, reject) => {
+                if (
+                  !navigator.geolocation
+                ) {
+                  reject(
+                    new Error(
+                      "Location is unavailable."
+                    )
+                  );
+
+                  return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                  position => {
+                    const location = {
+                      lat:
+                        position.coords
+                          .latitude,
+
+                      lon:
+                        position.coords
+                          .longitude
+                    };
+
+                    setCoords(location);
+
+                    setLocationLabel(
+                      "Your current location"
+                    );
+
+                    resolve(location);
+                  },
+
+                  error => {
+                    console.error(
+                      "TRACE GPS SEARCH ERROR:",
+                      error
+                    );
+
+                    if (
+                      error.code === 1
+                    ) {
+                      reject(
+                        new Error(
+                          "Please allow location access in Chrome."
+                        )
+                      );
+                    } else if (
+                      error.code === 2
+                    ) {
+                      reject(
+                        new Error(
+                          "Your device could not determine your location. Use Profile address or Other location."
+                        )
+                      );
+                    } else {
+                      reject(
+                        new Error(
+                          "Location detection timed out. Use Profile address or Other location."
+                        )
+                      );
+                    }
+                  },
+
+                  {
+                    enableHighAccuracy: false,
+                    timeout: 15000,
+                    maximumAge: 300000
+                  }
+                );
+              }
+            );
+        } else {
+          origin = coords;
+        }
+      }
+
+      if (locationMode === "profile") {
+        const query = [
+          profile.address,
+          profile.city,
+          "India"
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        if (!query) {
+          throw new Error(
+            "Add your address and city in your profile first."
+          );
+        }
+
+        origin =
+          await geocodeLocation(
+            query
+          );
+
+        setCoords(origin);
+
+        setLocationLabel(
+          "Saved profile location"
+        );
+      }
+
+      if (locationMode === "custom") {
+        if (!customLocation.trim()) {
+          throw new Error(
+            "Enter a location first."
+          );
+        }
+
+        origin =
+          await geocodeLocation(
+            customLocation
+          );
+
+        setCoords(origin);
+
+        setLocationLabel(
+          origin.label
+        );
+      }
+
+      if (!origin) {
+        throw new Error(
+          "Please select a location."
+        );
+      }
+
+      const overpassQuery = `
+[out:json][timeout:30];
+(
+  nwr["amenity"="hospital"]
+    (around:15000,${origin.lat},${origin.lon});
+
+  nwr["amenity"="clinic"]
+    (around:15000,${origin.lat},${origin.lon});
+
+  nwr["healthcare"="hospital"]
+    (around:15000,${origin.lat},${origin.lon});
+
+  nwr["healthcare"="clinic"]
+    (around:15000,${origin.lat},${origin.lon});
+);
+out center tags;
+`;
+
+      const response =
+        await fetch(
+          "https://overpass-api.de/api/interpreter",
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "text/plain"
+            },
+
+            body: overpassQuery
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          "Healthcare location service unavailable."
+        );
+      }
+
+      const data =
+        await response.json();
+
+      const formatted =
+        (data.elements || [])
+          .map(place => {
+            const lat =
+              place.lat ??
+              place.center?.lat;
+
+            const lon =
+              place.lon ??
+              place.center?.lon;
+
+            if (
+              lat == null ||
+              lon == null
+            ) {
+              return null;
+            }
+
+            const tags =
+              place.tags || {};
+
+            const distance =
+              distanceKm(
+                origin.lat,
+                origin.lon,
+                Number(lat),
+                Number(lon)
+              );
+
+            return {
+              id: `${place.type}-${place.id}`,
+
+              name:
+                tags.name ||
+                "Healthcare facility",
+
+              type:
+                tags.amenity ===
+                  "clinic" ||
+                tags.healthcare ===
+                  "clinic"
+                  ? "Clinic"
+                  : "Hospital",
+
+              distance,
+
+              lat: Number(lat),
+              lon: Number(lon),
+
+              address:
+                tags["addr:full"] ||
+                tags["addr:street"] ||
+                tags["addr:city"] ||
+                "Address not listed",
+
+              phone:
+                tags.phone ||
+                tags["contact:phone"] ||
+                "",
+
+              emergency:
+                tags.emergency === "yes"
+            };
+          })
+          .filter(Boolean)
+          .sort(
+            (a, b) =>
+              a.distance -
+              b.distance
+          );
+
+      setPlaces(formatted);
+    } catch (error) {
+      console.error(
+        "TRACE healthcare error:",
+        error
+      );
+
+      setPlaces([]);
+
+      setLocationError(
+        error.message ||
+          "Could not find nearby healthcare facilities."
+      );
+    } finally {
+      setPlaceLoading(false);
+    }
+  }
+
+  const nearbyPlaces =
+    useMemo(() => {
+      return places.filter(
+        place =>
+          place.distance <= radius
+      );
+    }, [places, radius]);
+
+  if (!loggedIn) {
+    return (
+      <div className="trace-auth">
+        <div className="auth-card">
+
+          <div className="trace-logo">
+            ✚
+          </div>
+
+          <h1>TRACE</h1>
+
+          <p className="auth-subtitle">
+            Transparent Health Reasoning
+          </p>
+
+          <div className="auth-tabs">
+
+            <button
+              type="button"
+              className={
+                authMode === "login"
+                  ? "active"
+                  : ""
+              }
+              onClick={() =>
+                setAuthMode("login")
+              }
+            >
+              Login
+            </button>
+
+            <button
+              type="button"
+              className={
+                authMode === "signup"
+                  ? "active"
+                  : ""
+              }
+              onClick={() =>
+                setAuthMode("signup")
+              }
+            >
+              Create Profile
+            </button>
+
+          </div>
+
+          {authMode === "signup" ? (
+            <>
+              <input
+                placeholder="Full name"
+                value={form.name}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    name: e.target.value
+                  })
+                }
+              />
+
+              <input
+                placeholder="Email"
+                value={form.email}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    email: e.target.value
+                  })
+                }
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={form.password}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    password:
+                      e.target.value
+                  })
+                }
+              />
+
+              <input
+                type="number"
+                placeholder="Age"
+                value={form.age}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    age: e.target.value
+                  })
+                }
+              />
+
+              <input
+                placeholder="Gender (optional)"
+                value={form.gender}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    gender: e.target.value
+                  })
+                }
+              />
+
+              <input
+                placeholder="Home address"
+                value={form.address}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    address:
+                      e.target.value
+                  })
+                }
+              />
+
+              <input
+                placeholder="City"
+                value={form.city}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    city: e.target.value
+                  })
+                }
+              />
+
+              <button
+                type="button"
+                className="primary-button"
+                onClick={createAccount}
+              >
+                Create my TRACE profile
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                placeholder="Email"
+                value={form.email}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    email: e.target.value
+                  })
+                }
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={form.password}
+                onChange={e =>
+                  setForm({
+                    ...form,
+                    password:
+                      e.target.value
+                  })
+                }
+              />
+
+              <button
+                type="button"
+                className="primary-button"
+                onClick={login}
+              >
+                Login to TRACE
+              </button>
+            </>
+          )}
+
+          <small>
+            Prototype authentication stores
+            data locally in this browser.
+          </small>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
+    <div className="trace-app">
 
-    <ThemeProvider
-      theme={theme}
-    >
+      <header className="topbar">
 
-      <CssBaseline />
+        <div className="brand">
 
+          <span>✚</span>
 
-      {/* HEADER */}
+          <div>
+            <strong>TRACE</strong>
 
-      <AppBar
+            <small>
+              HEALTH REASONING ENGINE
+            </small>
+          </div>
 
-        position="sticky"
+        </div>
 
-        color="transparent"
+        <div className="top-actions">
 
-        elevation={0}
-
-        sx={{
-
-          background:
-            'rgba(255,255,255,0.97)',
-
-          backdropFilter:
-            'blur(10px)'
-
-        }}
-
-      >
-
-        <Toolbar>
-
-          <MedicalServices
-
-            sx={{
-
-              mr: 1.5,
-
-              color:
-                '#7C3AED'
-
-            }}
-
-          />
-
-
-          <Typography
-
-            variant="h5"
-
-            sx={{
-
-              fontWeight: 700,
-
-              color:
-                '#7C3AED'
-
-            }}
-
-          >
-
-            TRACE
-
-          </Typography>
-
-
-          <Typography
-
-            variant="subtitle2"
-
-            sx={{
-
-              ml: 1,
-
-              color:
-                '#6B7280'
-
-            }}
-
-          >
-
-            Health Reconciliation
-
-          </Typography>
-
-
-          <Box
-            sx={{
-              flexGrow: 1
-            }}
-          />
-
-
-          {/* PROFILE BUTTON */}
-
-          <Button
-
-            variant="outlined"
-
-            startIcon={
-              <AccountCircle />
-            }
-
-            onClick={
-              openProfile
-            }
-
-            sx={{
-              mr: 1
-            }}
-
-          >
-
-            {user.name ||
-              'Profile'}
-
-          </Button>
-
-
-          <Chip
-
-            icon={
-              <Security
-                fontSize="small"
-              />
-            }
-
-            label="HIPAA"
-
-            size="small"
-
-            color="success"
-
-            sx={{
-              mr: 1
-            }}
-
-          />
-
-
-          <IconButton
-
-            onClick={
-              handleLogout
-            }
-
-            sx={{
-
-              color:
-                '#EF4444'
-
-            }}
-
-          >
-
-            <Close />
-
-          </IconButton>
-
-        </Toolbar>
-
-      </AppBar>
-
-
-      {/* ======================================================
-          PROFILE SUMMARY — ALWAYS VISIBLE
-      ====================================================== */}
-
-      <Box
-
-        sx={{
-
-          background:
-            '#ffffff',
-
-          borderBottom:
-            '1px solid #E5E7EB'
-
-        }}
-
-      >
-
-        <Container
-          maxWidth="lg"
-        >
-
-          <Box
-
-            sx={{
-
-              py: 1.5,
-
-              display:
-                'flex',
-
-              alignItems:
-                'center',
-
-              gap: 2,
-
-              flexWrap:
-                'wrap'
-
-            }}
-
-          >
-
-            <Chip
-
-              icon={
-                <Person />
-              }
-
-              label={
-                `Name: ${user.name || 'Not set'}`
-              }
-
-              variant="outlined"
-
-            />
-
-
-            <Chip
-
-              icon={
-                <Email />
-              }
-
-              label={
-                user.email ||
-                'Email not set'
-              }
-
-              variant="outlined"
-
-            />
-
-
-            <Chip
-
-              icon={
-                <LocationOn />
-              }
-
-              label={
-
-                user.city
-
-                  ? `City: ${user.city}`
-
-                  : 'City not set'
-
-              }
-
-              variant="outlined"
-
-            />
-
-
-            <Button
-
-              size="small"
-
-              startIcon={
-                <Edit />
-              }
-
-              onClick={
-                openProfile
-              }
-
-            >
-
-              Edit Profile
-
-            </Button>
-
-          </Box>
-
-        </Container>
-
-      </Box>
-
-
-      {/* ======================================================
-          MAIN
-      ====================================================== */}
-
-      <Box
-
-        sx={{
-
-          minHeight:
-            '100vh',
-
-          background:
-            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-
-          py: 4
-
-        }}
-
-      >
-
-        <Container
-          maxWidth="lg"
-        >
-
-
-          {/* TABS */}
-
-          <Paper
-            sx={{
-              mb: 4
+          <button
+            type="button"
+            className="profile-button"
+            onClick={() => {
+              setForm(profile);
+              setProfileOpen(true);
             }}
           >
-
-            <Tabs
-
-              value={
-                tabValue
-              }
-
-              onChange={
-                (_, v) =>
-                  setTabValue(v)
-              }
-
-              centered
-
-            >
-
-              <Tab
-                label="📄 Health Records"
-              />
-
-              <Tab
-                label="🩺 Symptom Checker"
-              />
-
-            </Tabs>
-
-          </Paper>
-
-
-          {/* ==================================================
-              HEALTH RECORDS
-          ================================================== */}
-
-          {tabValue === 0 && (
-
-            <motion.div
-
-              initial={{
-                opacity: 0
-              }}
-
-              animate={{
-                opacity: 1
-              }}
-
-            >
-
-              <Box
-
-                sx={{
-
-                  mb: 5,
-
-                  textAlign:
-                    'center'
-
-                }}
-
-              >
-
-                <Typography
-
-                  variant="h4"
-
-                  sx={{
-                    color:
-                      'white'
-                  }}
-
-                >
-
-                  Your Health Records.
-
-                  <span
-                    style={{
-                      color:
-                        '#FCD34D'
-                    }}
-                  >
-
-                    {' '}
-                    Reconciled.
-
-                  </span>
-
-                </Typography>
-
-
-                <Typography
-
-                  sx={{
-
-                    color:
-                      'rgba(255,255,255,0.85)',
-
-                    mt: 1
-
-                  }}
-
-                >
-
-                  Upload medical documents and analyze them for conflicts, missing evidence and outdated information.
-
-                </Typography>
-
-              </Box>
-
-
-              <Paper
-
-                sx={{
-
-                  p: 4,
-
-                  mb: 4
-
-                }}
-
-              >
-
-                <Box
-
-                  sx={{
-
-                    display:
-                      'flex',
-
-                    flexDirection:
-                      'column',
-
-                    alignItems:
-                      'center'
-
-                  }}
-
-                >
-
-                  <FileUpload
-
-                    sx={{
-
-                      fontSize: 64,
-
-                      color:
-                        '#7C3AED',
-
-                      mb: 2
-
-                    }}
-
-                  />
-
-
-                  <Typography
-                    variant="h6"
-                  >
-
-                    Upload Your Health Records
-
-                  </Typography>
-
-
-                  <Typography
-
-                    variant="body2"
-
-                    color="text.secondary"
-
-                    sx={{
-                      mb: 3
-                    }}
-
-                  >
-
-                    PDFs, images, or text files
-
-                  </Typography>
-
-
-                  <Button
-
-                    variant="contained"
-
-                    component="label"
-
-                    startIcon={
-                      <CloudUpload />
-                    }
-
-                  >
-
-                    Choose Files
-
-                    <input
-
-                      type="file"
-
-                      hidden
-
-                      multiple
-
-                      accept=".pdf,.jpg,.jpeg,.png,.txt"
-
-                      onChange={
-                        handleUpload
-                      }
-
-                    />
-
-                  </Button>
-
-
-                  {documents.length >
-                    0 && (
-
-                    <Box
-
-                      sx={{
-
-                        mt: 3,
-
-                        display:
-                          'flex',
-
-                        flexWrap:
-                          'wrap',
-
-                        justifyContent:
-                          'center',
-
-                        gap: 1
-
-                      }}
-
-                    >
-
-                      {documents.map(
-                        (doc, i) => (
-
-                          <Chip
-
-                            key={i}
-
-                            label={
-                              doc.name
-                            }
-
-                            icon={
-                              <Description />
-                            }
-
-                            onDelete={() =>
-                              removeFile(i)
-                            }
-
-                          />
-
-                        )
-                      )}
-
-
-                      <Chip
-
-                        label="Clear Records"
-
-                        icon={
-                          <DeleteSweep />
-                        }
-
-                        color="error"
-
-                        onClick={
-                          clearAllData
-                        }
-
-                      />
-
-                    </Box>
-
-                  )}
-
-                </Box>
-
-              </Paper>
-
-
-              {processing && (
-
-                <Slide
-
-                  direction="up"
-
-                  in
-
-                >
-
-                  <Paper
-                    sx={{
-                      p: 3,
-                      mb: 3
-                    }}
-                  >
-
-                    <Box
-
-                      sx={{
-
-                        display:
-                          'flex',
-
-                        gap: 2,
-
-                        alignItems:
-                          'center'
-
-                      }}
-
-                    >
-
-                      <LinearProgress
-                        sx={{
-                          flex: 1
-                        }}
-                      />
-
-                      <Typography>
-
-                        Analyzing records...
-
-                      </Typography>
-
-                    </Box>
-
-                  </Paper>
-
-                </Slide>
-
-              )}
-
-
-              {results && (
-
-                <Fade
-                  in
-                >
-
-                  <Box>
-
-                    <Grid
-
-                      container
-
-                      spacing={3}
-
-                      sx={{
-                        mb: 3
-                      }}
-
-                    >
-
-                      <Grid item xs={6} md={2.4}>
-
-                        <Card>
-
-                          <CardContent
-                            sx={{
-                              textAlign:
-                                'center'
-                            }}
-                          >
-
-                            <CheckCircle
-                              color="success"
-                            />
-
-                            <Typography
-                              variant="h4"
-                            >
-
-                              {
-                                results.summary
-                                  ?.confirmed ??
-                                0
-                              }
-
-                            </Typography>
-
-                            <Typography>
-                              Confirmed
-                            </Typography>
-
-                          </CardContent>
-
-                        </Card>
-
-                      </Grid>
-
-
-                      <Grid item xs={6} md={2.4}>
-
-                        <Card>
-
-                          <CardContent
-                            sx={{
-                              textAlign:
-                                'center'
-                            }}
-                          >
-
-                            <Warning
-                              color="warning"
-                            />
-
-                            <Typography
-                              variant="h4"
-                            >
-
-                              {
-                                results.summary
-                                  ?.conflicts ??
-                                0
-                              }
-
-                            </Typography>
-
-                            <Typography>
-                              Conflicts
-                            </Typography>
-
-                          </CardContent>
-
-                        </Card>
-
-                      </Grid>
-
-
-                      <Grid item xs={6} md={2.4}>
-
-                        <Card>
-
-                          <CardContent
-                            sx={{
-                              textAlign:
-                                'center'
-                            }}
-                          >
-
-                            <ErrorIcon
-                              color="error"
-                            />
-
-                            <Typography
-                              variant="h4"
-                            >
-
-                              {
-                                results.summary
-                                  ?.missing ??
-                                0
-                              }
-
-                            </Typography>
-
-                            <Typography>
-                              Missing
-                            </Typography>
-
-                          </CardContent>
-
-                        </Card>
-
-                      </Grid>
-
-
-                      <Grid item xs={6} md={2.4}>
-
-                        <Card>
-
-                          <CardContent
-                            sx={{
-                              textAlign:
-                                'center'
-                            }}
-                          >
-
-                            <Schedule
-                              color="warning"
-                            />
-
-                            <Typography
-                              variant="h4"
-                            >
-
-                              {
-                                results.summary
-                                  ?.outdated ??
-                                0
-                              }
-
-                            </Typography>
-
-                            <Typography>
-                              Outdated
-                            </Typography>
-
-                          </CardContent>
-
-                        </Card>
-
-                      </Grid>
-
-
-                      <Grid item xs={6} md={2.4}>
-
-                        <Card>
-
-                          <CardContent
-                            sx={{
-                              textAlign:
-                                'center'
-                            }}
-                          >
-
-                            <Help
-                              color="primary"
-                            />
-
-                            <Typography
-                              variant="h4"
-                            >
-
-                              {
-                                results.summary
-                                  ?.unknown ??
-                                0
-                              }
-
-                            </Typography>
-
-                            <Typography>
-                              Uncertain
-                            </Typography>
-
-                          </CardContent>
-
-                        </Card>
-
-                      </Grid>
-
-                    </Grid>
-
-
-                    <Card
-                      sx={{
-                        mt: 3
-                      }}
-                    >
-
-                      <CardContent>
-
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            mb: 2
-                          }}
-                        >
-
-                          <Share />
-
-                          {' '}
-
-                          Doctor Handoff Summary
-
-                        </Typography>
-
-
-                        <Typography
-                          color="text.secondary"
-                        >
-
-                          Share the reconciled summary with your healthcare provider.
-
-                        </Typography>
-
-                      </CardContent>
-
-                    </Card>
-
-                  </Box>
-
-                </Fade>
-
-              )}
-
-            </motion.div>
-
-          )}
-
-
-          {/* ==================================================
-              SYMPTOM CHECKER
-          ================================================== */}
-
-          {tabValue === 1 && (
-
-            <motion.div
-
-              initial={{
-                opacity: 0
-              }}
-
-              animate={{
-                opacity: 1
-              }}
-
-            >
-
-              <Box
-
-                sx={{
-
-                  mb: 5,
-
-                  textAlign:
-                    'center'
-
-                }}
-
-              >
-
-                <Typography
-
-                  variant="h4"
-
-                  sx={{
-                    color:
-                      'white'
-                  }}
-
-                >
-
-                  🩺 Virtual Health Assistant
-
-                </Typography>
-
-
-                <Typography
-
-                  sx={{
-
-                    color:
-                      'rgba(255,255,255,0.85)',
-
-                    mt: 1
-
-                  }}
-
-                >
-
-                  AI-assisted symptom triage with emergency red-flag detection.
-
-                </Typography>
-
-              </Box>
-
-
-              <Paper
-                sx={{
-                  p: 4,
-                  mb: 3
-                }}
-              >
-
-                <TextField
-
-                  fullWidth
-
-                  multiline
-
-                  rows={3}
-
-                  label="Describe your symptoms"
-
-                  placeholder="Example: chest pain, dizziness and sweating"
-
-                  value={
-                    symptoms
-                  }
-
-                  onChange={
-                    e =>
-                      setSymptoms(
-                        e.target.value
-                      )
-                  }
-
-                  sx={{
-                    mb: 3
-                  }}
-
-                />
-
-
-                <Box
-
-                  sx={{
-
-                    display:
-                      'flex',
-
-                    gap: 2,
-
-                    flexWrap:
-                      'wrap'
-
-                  }}
-
-                >
-
-                  <Button
-
-                    variant="contained"
-
-                    size="large"
-
-                    startIcon={
-                      <Healing />
-                    }
-
-                    onClick={
-                      checkSymptoms
-                    }
-
-                    disabled={
-                      aiLoading
-                    }
-
-                  >
-
-                    {aiLoading
-
-                      ? 'Analyzing...'
-
-                      : 'Check Symptoms'}
-
-                  </Button>
-
-
-                  <Button
-
-                    variant="outlined"
-
-                    size="large"
-
-                    startIcon={
-                      <LocalHospital />
-                    }
-
-                    onClick={
-                      loadNearbyHospitals
-                    }
-
-                    disabled={
-                      loadingHospitals
-                    }
-
-                  >
-
-                    {loadingHospitals
-
-                      ? 'Finding Hospitals...'
-
-                      : 'Find Hospitals Near Me'}
-
-                  </Button>
-
-                </Box>
-
-              </Paper>
-
-
-              {/* RESULT */}
-
-              {symptomResult && (
-
-                <Fade
-                  in
-                >
-
-                  <Box>
-
-
-                    <Alert
-
-                      severity={
-
-                        symptomResult.severity ===
-                        'severe'
-
-                          ? 'error'
-
-                          : symptomResult.severity ===
-                            'moderate'
-
-                          ? 'warning'
-
-                          : 'success'
-
-                      }
-
-                      sx={{
-                        mb: 3
-                      }}
-
-                    >
-
-                      <Typography
-                        variant="h6"
-                      >
-
-                        {
-                          getSeverityEmoji(
-                            symptomResult.severity
-                          )
-                        }
-
-                        {' '}
-
-                        Severity:
-
-                        {' '}
-
-                        {String(
-                          symptomResult.severity
-                        ).toUpperCase()}
-
-                      </Typography>
-
-
-                      <Typography>
-
-                        {symptomResult.severity ===
-                        'severe'
-
-                          ? `🚨 POSSIBLE MEDICAL EMERGENCY — Call ${EMERGENCY_NUMBER} immediately.`
-
-                          : symptomResult.severity ===
-                            'moderate'
-
-                          ? '⚠️ These symptoms need attention and should be monitored closely.'
-
-                          : '✅ No emergency red flag was detected from the information provided.'}
-
-                      </Typography>
-
-                    </Alert>
-
-
-                    {symptomResult
-                      .severity ===
-                      'severe' && (
-
-                      <Button
-
-                        fullWidth
-
-                        variant="contained"
-
-                        color="error"
-
-                        size="large"
-
-                        startIcon={
-                          <Emergency />
-                        }
-
-                        sx={{
-                          mb: 3
-                        }}
-
-                        onClick={() => {
-
-                          window.location.href =
-                            `tel:${EMERGENCY_NUMBER}`;
-
-                        }}
-
-                      >
-
-                        🚨 CALL EMERGENCY SERVICES
-                        {' '}
-                        ({EMERGENCY_NUMBER})
-
-                      </Button>
-
-                    )}
-
-
-                    <Paper
-
-                      sx={{
-
-                        p: 3,
-
-                        mb: 3
-
-                      }}
-
-                    >
-
-                      <Typography
-                        variant="h6"
-                      >
-
-                        <Favorite />
-
-                        {' '}
-
-                        Home Remedies / General Care
-
-                      </Typography>
-
-
-                      <List>
-
-                        {(symptomResult.remedies ||
-                          [
-                            'Rest and stay hydrated.',
-                            'Monitor your symptoms.'
-                          ]
-                        ).map(
-                          (remedy, i) => (
-
-                            <ListItem
-                              key={i}
-                            >
-
-                              <ListItemIcon>
-
-                                <Science />
-
-                              </ListItemIcon>
-
-                              <ListItemText
-                                primary={
-                                  remedy
-                                }
-                              />
-
-                            </ListItem>
-
-                          )
-                        )}
-
-                      </List>
-
-                    </Paper>
-
-
-                    {symptomResult.advice && (
-
-                      <Paper
-
-                        sx={{
-
-                          p: 3,
-
-                          mb: 3,
-
-                          bgcolor:
-                            '#EFF6FF'
-
-                        }}
-
-                      >
-
-                        <Typography
-
-                          variant="h6"
-
-                          sx={{
-                            mb: 1
-                          }}
-
-                        >
-
-                          <MedicalServices />
-
-                          {' '}
-
-                          Medical Advice
-
-                        </Typography>
-
-
-                        <Typography>
-
-                          {
-                            symptomResult.advice
-                          }
-
-                        </Typography>
-
-                      </Paper>
-
-                    )}
-
-                  </Box>
-
-                </Fade>
-
-              )}
-
-
-              {/* =================================================
-                  HOSPITALS
-              ================================================= */}
-
-              {showHospitals && (
-
-                <Box
-                  sx={{
-                    mt: 4
-                  }}
-                >
-
-                  <Typography
-
-                    variant="h5"
-
-                    sx={{
-
-                      color:
-                        'white',
-
-                      mb: 1
-
-                    }}
-
-                  >
-
-                    🏥 Hospitals & Clinics Near You
-
-                  </Typography>
-
-
-                  <Typography
-
-                    sx={{
-
-                      color:
-                        'rgba(255,255,255,0.85)',
-
-                      mb: 3
-
-                    }}
-
-                  >
-
-                    Location based on your saved profile address.
-
-                    {user.address
-                      ? ` ${user.address},`
-                      : ''}
-
-                    {user.city
-                      ? ` ${user.city}.`
-                      : ''}
-
-                  </Typography>
-
-
-                  {loadingHospitals && (
-
-                    <Paper
-                      sx={{
-                        p: 3,
-                        mb: 3
-                      }}
-                    >
-
-                      <Box
-
-                        sx={{
-
-                          display:
-                            'flex',
-
-                          alignItems:
-                            'center',
-
-                          gap: 2
-
-                        }}
-
-                      >
-
-                        <CircularProgress
-                          size={24}
-                        />
-
-
-                        <Typography>
-
-                          Searching within 15 km...
-
-                        </Typography>
-
-                      </Box>
-
-                    </Paper>
-
-                  )}
-
-
-                  <Grid
-
-                    container
-
-                    spacing={3}
-
-                  >
-
-                    {nearbyHospitals.map(
-                      hospital => (
-
-                        <Grid
-
-                          item
-
-                          xs={12}
-
-                          sm={6}
-
-                          md={4}
-
-                          key={
-                            hospital.id
-                          }
-
-                        >
-
-                          <Card
-
-                            sx={{
-
-                              height:
-                                '100%'
-
-                            }}
-
-                          >
-
-                            <CardContent>
-
-                              <Box
-
-                                sx={{
-
-                                  display:
-                                    'flex',
-
-                                  justifyContent:
-                                    'space-between',
-
-                                  gap: 1
-
-                                }}
-
-                              >
-
-                                <Typography
-                                  variant="h6"
-                                >
-
-                                  {
-                                    hospital.name
-                                  }
-
-                                </Typography>
-
-
-                                <Chip
-
-                                  label={
-                                    hospital.type
-                                  }
-
-                                  size="small"
-
-                                  color={
-
-                                    hospital.type ===
-                                    'Clinic'
-
-                                      ? 'success'
-
-                                      : 'primary'
-
-                                  }
-
-                                />
-
-                              </Box>
-
-
-                              <Divider
-                                sx={{
-                                  my: 1.5
-                                }}
-                              />
-
-
-                              <Box
-
-                                sx={{
-
-                                  display:
-                                    'flex',
-
-                                  gap: 1,
-
-                                  mb: 1
-
-                                }}
-
-                              >
-
-                                <LocationOn
-                                  fontSize="small"
-                                />
-
-                                <Typography
-                                  variant="body2"
-                                >
-
-                                  {
-                                    hospital.address
-                                  }
-
-                                </Typography>
-
-                              </Box>
-
-
-                              <Typography
-
-                                variant="body2"
-
-                                sx={{
-
-                                  color:
-                                    '#7C3AED',
-
-                                  fontWeight:
-                                    700,
-
-                                  mb: 1.5
-
-                                }}
-
-                              >
-
-                                📍
-
-                                {' '}
-
-                                {
-                                  hospital.distance.toFixed(
-                                    1
-                                  )
-                                }
-
-                                {' '}
-
-                                km away
-
-                              </Typography>
-
-
-                              <Box
-
-                                sx={{
-
-                                  display:
-                                    'flex',
-
-                                  gap: 1,
-
-                                  mb: 1
-
-                                }}
-
-                              >
-
-                                <Phone
-                                  fontSize="small"
-                                />
-
-                                <Typography
-                                  variant="body2"
-                                >
-
-                                  {
-                                    hospital.phone
-                                  }
-
-                                </Typography>
-
-                              </Box>
-
-
-                              {hospital.emergency && (
-
-                                <Box
-
-                                  sx={{
-
-                                    display:
-                                      'flex',
-
-                                    gap: 1,
-
-                                    mb: 1
-
-                                  }}
-
-                                >
-
-                                  <Emergency
-                                    fontSize="small"
-                                    color="error"
-                                  />
-
-                                  <Typography
-                                    variant="body2"
-                                  >
-
-                                    {
-                                      hospital.emergency
-                                    }
-
-                                  </Typography>
-
-                                </Box>
-
-                              )}
-
-
-                              <Box
-
-                                sx={{
-
-                                  display:
-                                    'flex',
-
-                                  gap: 1
-
-                                }}
-
-                              >
-
-                                <Star
-
-                                  fontSize="small"
-
-                                  color="warning"
-
-                                />
-
-                                <Typography
-                                  variant="body2"
-                                >
-
-                                  Rating:
-
-                                  {' '}
-
-                                  {
-                                    hospital.rating
-                                  }
-
-                                </Typography>
-
-                              </Box>
-
-                            </CardContent>
-
-                          </Card>
-
-                        </Grid>
-
-                      )
-                    )}
-
-                  </Grid>
-
-
-                  {!loadingHospitals &&
-
-                    nearbyHospitals.length ===
-                      0 && (
-
-                      <Paper
-
-                        sx={{
-                          p: 3
-                        }}
-
-                      >
-
-                        <Typography>
-
-                          No nearby hospitals are currently displayed.
-
-                          Edit your profile to make sure your
-                          address and city are correct, then try again.
-
-                        </Typography>
-
-                      </Paper>
-
-                    )}
-
-                </Box>
-
-              )}
-
-            </motion.div>
-
-          )}
-
-        </Container>
-
-      </Box>
-
-
-      {/* ======================================================
-          PROFILE DIALOG
-      ====================================================== */}
-
-      <Dialog
-
-        open={
-          profileOpen
-        }
-
-        onClose={() =>
-          setProfileOpen(false)
-        }
-
-        fullWidth
-
-        maxWidth="sm"
-
-      >
-
-        <DialogTitle>
-
-          <Box
-
-            sx={{
-
-              display:
-                'flex',
-
-              alignItems:
-                'center',
-
-              gap: 1
-
-            }}
-
+            👤 {profile.name || "Profile"}
+          </button>
+
+          <button
+            type="button"
+            onClick={logout}
           >
+            Logout
+          </button>
 
-            <AccountCircle
-              color="primary"
-            />
+        </div>
 
-            My Profile
+      </header>
 
-          </Box>
+      <main className="dashboard">
 
-        </DialogTitle>
+        <section className="hero-card">
 
+          <div>
 
-        <DialogContent>
+            <span className="eyebrow">
+              PERSONALIZED HEALTH CONTEXT
+            </span>
 
-          <Typography
+            <h1>
+              Good day,{" "}
+              {profile.name ||
+                "there"}.
+            </h1>
 
-            variant="body2"
+            <p>
+              Understand your symptoms and see
+              how TRACE reasons from the
+              information you provide.
+            </p>
 
-            color="text.secondary"
+          </div>
 
-            sx={{
-              mb: 3
+          <div className="hero-icon">
+            ✦
+          </div>
+
+        </section>
+
+        <section className="profile-summary">
+
+          <div>
+            <strong>
+              YOUR HEALTH CONTEXT
+            </strong>
+
+            <p>
+              Age:{" "}
+              {profile.age ||
+                "Not provided"}{" "}
+              ·{" "}
+              {profile.city ||
+                "Location not provided"}
+            </p>
+          </div>
+
+          <div>
+
+            <span>
+              {profile.conditions
+                ? "✓ Health history"
+                : "○ Health history"}
+            </span>
+
+            <span>
+              {profile.allergies
+                ? "✓ Allergies"
+                : "○ Allergies"}
+            </span>
+
+            <span>
+              {profile.medications
+                ? "✓ Medications"
+                : "○ Medications"}
+            </span>
+
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setForm(profile);
+              setProfileOpen(true);
             }}
-
           >
+            Edit profile
+          </button>
 
-            These details are used to identify your profile and find hospitals near your saved address.
+        </section>
 
-          </Typography>
+        <section className="analysis-card">
 
+          <div className="section-number">
+            01
+          </div>
 
-          <TextField
+          <div className="section-content">
 
-            fullWidth
+            <span className="eyebrow">
+              DESCRIBE YOUR SYMPTOMS
+            </span>
 
-            label="Full Name"
+            <h2>
+              What are you experiencing?
+            </h2>
 
-            value={
-              profileForm.name
-            }
-
-            disabled={
-              !editingProfile
-            }
-
-            onChange={
-              e =>
-                setProfileForm({
-
-                  ...profileForm,
-
-                  name:
-                    e.target.value
-
-                })
-            }
-
-            sx={{
-              mb: 2
-            }}
-
-          />
-
-
-          <TextField
-
-            fullWidth
-
-            label="Email"
-
-            value={
-              profileForm.email
-            }
-
-            disabled={
-              !editingProfile
-            }
-
-            onChange={
-              e =>
-                setProfileForm({
-
-                  ...profileForm,
-
-                  email:
-                    e.target.value
-
-                })
-            }
-
-            sx={{
-              mb: 2
-            }}
-
-          />
-
-
-          <TextField
-
-            fullWidth
-
-            label="Home Address"
-
-            value={
-              profileForm.address
-            }
-
-            disabled={
-              !editingProfile
-            }
-
-            onChange={
-              e =>
-                setProfileForm({
-
-                  ...profileForm,
-
-                  address:
-                    e.target.value
-
-                })
-            }
-
-            sx={{
-              mb: 2
-            }}
-
-          />
-
-
-          <TextField
-
-            fullWidth
-
-            label="City"
-
-            value={
-              profileForm.city
-            }
-
-            disabled={
-              !editingProfile
-            }
-
-            onChange={
-              e =>
-                setProfileForm({
-
-                  ...profileForm,
-
-                  city:
-                    e.target.value
-
-                })
-            }
-
-          />
-
-        </DialogContent>
-
-
-        <DialogActions>
-
-          <Button
-
-            onClick={() =>
-              setProfileOpen(false)
-            }
-
-          >
-
-            Close
-
-          </Button>
-
-
-          {!editingProfile ? (
-
-            <Button
-
-              variant="contained"
-
-              startIcon={
-                <Edit />
-              }
-
-              onClick={() =>
-                setEditingProfile(
-                  true
+            <textarea
+              value={symptoms}
+              onChange={e =>
+                setSymptoms(
+                  e.target.value
                 )
               }
+              placeholder="Example: I have a sharp headache on the right side since this morning. It gets worse when I move."
+            />
 
-            >
+            <div className="analysis-actions">
 
-              Edit Profile
+              <button
+                type="button"
+                className="primary-button"
+                onClick={
+                  analyzeSymptoms
+                }
+                disabled={loading}
+              >
+                {loading
+                  ? "Analyzing..."
+                  : "Analyze with TRACE →"}
+              </button>
 
-            </Button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setDoctorOpen(true)
+                }
+              >
+                🩺 Doctor Summary
+              </button>
 
-          ) : (
+            </div>
 
-            <Button
+          </div>
 
-              variant="contained"
+        </section>
+                {result && (
+          <section className="results">
 
-              startIcon={
-                <Save />
+            {result.emergency && (
+              <div className="emergency-box">
+
+                <strong>
+                  ⚠ Potential urgent warning
+                </strong>
+
+                <p>
+                  Seek urgent professional
+                  assessment. If symptoms are
+                  severe or rapidly worsening,
+                  call {EMERGENCY}.
+                </p>
+
+              </div>
+            )}
+
+            {/* ─────────────────────────────
+                NATURAL TRACE ASSESSMENT
+            ───────────────────────────── */}
+
+            <div className="full-result">
+
+              <span className="eyebrow">
+                TRACE ASSESSMENT
+              </span>
+
+              <h2>
+                🩺 What your symptoms may mean
+              </h2>
+
+              <p>
+                {result.overview}
+              </p>
+
+              <div className="result-grid">
+
+                <ResultCard
+                  title="What may be happening"
+                  items={
+                    result.whatMayBeHappening
+                  }
+                />
+
+                <ResultCard
+                  title="Why it may be happening"
+                  items={
+                    result.whyItMayBeHappening
+                  }
+                />
+
+              </div>
+
+              <div className="result-grid">
+
+                <ResultCard
+                  title={
+                    result.summary?.severity ===
+                    "mild"
+                      ? "🟢 What you can do now"
+                      : "What to do now"
+                  }
+                  items={
+                    result.whatToDoNow
+                  }
+                />
+
+                <ResultCard
+                  title="⚠ When to seek care"
+                  items={
+                    result.whenToSeekCare
+                  }
+                />
+
+              </div>
+
+            </div>
+
+
+            {/* ─────────────────────────────
+                TRACE REASONING RECEIPT
+            ───────────────────────────── */}
+
+            <div className="receipt-header">
+
+              <span>
+                TRACE REASONING RECEIPT
+              </span>
+
+              <h2>
+                {result.summary
+                  ?.primaryPattern ||
+                  "Health concern"}
+              </h2>
+
+            </div>
+
+
+            <div className="result-grid">
+
+              <ResultCard
+                title="Evidence detected"
+                items={
+                  result.evidence
+                }
+              />
+
+              <ResultCard
+                title="What TRACE does not know"
+                items={
+                  result.missingInformation
+                }
+              />
+
+            </div>
+
+
+            <div className="full-result">
+
+              <h2>
+                Possible explanations
+              </h2>
+
+              <div className="explanation-grid">
+
+                {(
+                  result.possibleExplanations ||
+                  []
+                ).map(
+                  (item, index) => (
+
+                    <div
+                      className="explanation-card"
+                      key={index}
+                    >
+
+                      <h3>
+                        {item.explanation ||
+                          item.label ||
+                          item.title}
+                      </h3>
+
+                      <p>
+                        <strong>
+                          Supports:
+                        </strong>{" "}
+                        {item.supports}
+                      </p>
+
+                      <p>
+                        <strong>
+                          Still missing:
+                        </strong>{" "}
+                        {item.missing}
+                      </p>
+
+                    </div>
+
+                  )
+                )}
+
+              </div>
+
+            </div>
+
+
+            <div className="result-grid">
+
+              <ResultCard
+                title="Questions that could change the decision"
+                items={
+                  result.decisionChangingQuestions
+                }
+                numbered
+              />
+
+              <ResultCard
+                title="What to do now"
+                items={
+                  result.whatToDoNow
+                }
+              />
+
+            </div>
+
+
+            <div className="disclaimer">
+              {result.disclaimer}
+            </div>
+
+          </section>
+        )}
+
+
+        {/* ─────────────────────────────────
+            CARE LOCATOR
+        ───────────────────────────────── */}
+
+        <section className="care-card">
+
+          <div className="care-heading">
+
+            <div>
+
+              <span className="eyebrow">
+                CARE LOCATOR
+              </span>
+
+              <h2>
+                Find hospitals & clinics
+                near you
+              </h2>
+
+              <p>
+                Search within 1 km, 2 km, 5 km
+                or 15 km using your current
+                location, saved address, or
+                another location.
+              </p>
+
+            </div>
+
+            <div className="location-symbol">
+              📍
+            </div>
+
+          </div>
+
+
+          <div className="location-options">
+
+            <button
+              type="button"
+              className={
+                locationMode === "gps"
+                  ? "selected"
+                  : ""
               }
-
-              onClick={
-                saveProfile
-              }
-
+              onClick={getGPS}
             >
+              📡 Current GPS
+            </button>
 
-              Save Profile
 
-            </Button>
+            <button
+              type="button"
+              className={
+                locationMode === "profile"
+                  ? "selected"
+                  : ""
+              }
+              onClick={() =>
+                setLocationMode("profile")
+              }
+            >
+              🏠 Profile address
+            </button>
 
+
+            <button
+              type="button"
+              className={
+                locationMode === "custom"
+                  ? "selected"
+                  : ""
+              }
+              onClick={() =>
+                setLocationMode("custom")
+              }
+            >
+              🔎 Other location
+            </button>
+
+          </div>
+
+
+          {locationMode === "custom" && (
+            <input
+              className="location-input"
+              placeholder="Enter area, landmark, address or city"
+              value={customLocation}
+              onChange={e =>
+                setCustomLocation(
+                  e.target.value
+                )
+              }
+            />
           )}
 
-        </DialogActions>
 
-      </Dialog>
+          <div className="radius-row">
 
-    </ThemeProvider>
+            {[1, 2, 5, 15].map(
+              value => (
 
+                <button
+                  type="button"
+                  key={value}
+                  className={
+                    radius === value
+                      ? "radius-selected"
+                      : ""
+                  }
+                  onClick={() =>
+                    setRadius(value)
+                  }
+                >
+                  {value} km
+                </button>
+
+              )
+            )}
+
+
+            <button
+              type="button"
+              className="find-button"
+              onClick={
+                findHealthcare
+              }
+              disabled={
+                placeLoading
+              }
+            >
+              {placeLoading
+                ? "Finding..."
+                : "Find nearby care →"}
+            </button>
+
+          </div>
+
+
+          {locationLabel && (
+            <div className="location-label">
+
+              📍 Searching around{" "}
+
+              <strong>
+                {locationLabel}
+              </strong>
+
+            </div>
+          )}
+
+
+          {locationError && (
+            <div className="location-error">
+              {locationError}
+            </div>
+          )}
+
+
+          {places.length > 0 &&
+            !placeLoading && (
+              <div className="places">
+
+                <h3>
+                  {nearbyPlaces.length} facilities
+                  within {radius} km
+                </h3>
+
+
+                <div className="places-grid">
+
+                  {nearbyPlaces.map(
+                    place => (
+
+                      <div
+                        className="place-card"
+                        key={place.id}
+                      >
+
+                        <div className="place-top">
+
+                          <div className="place-icon">
+                            {place.type ===
+                            "Clinic"
+                              ? "⚕"
+                              : "🏥"}
+                          </div>
+
+                          <span>
+                            {place.type}
+                          </span>
+
+                        </div>
+
+
+                        <h3>
+                          {place.name}
+                        </h3>
+
+
+                        <p>
+                          📍 {place.address}
+                        </p>
+
+
+                        <strong>
+                          {place.distance.toFixed(
+                            1
+                          )}{" "}
+                          km away
+                        </strong>
+
+
+                        {place.emergency && (
+                          <div className="emergency-tag">
+                            Emergency listed
+                          </div>
+                        )}
+
+
+                        <div className="place-actions">
+
+                          {place.phone && (
+                            <a
+                              href={`tel:${place.phone}`}
+                            >
+                              📞 Call
+                            </a>
+                          )}
+
+
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            🗺 Directions
+                          </a>
+
+                        </div>
+
+                      </div>
+
+                    )
+                  )}
+
+                </div>
+
+              </div>
+            )}
+
+        </section>
+                <section className="care-card">
+
+          <div className="care-heading">
+
+            <div>
+              <span className="eyebrow">
+                CARE LOCATOR
+              </span>
+
+              <h2>
+                Find hospitals & clinics
+                near you
+              </h2>
+
+              <p>
+                Search within 1 km, 2 km, 5 km
+                or 15 km using your current
+                location, saved address, or
+                another location.
+              </p>
+            </div>
+
+            <div className="location-symbol">
+              📍
+            </div>
+
+          </div>
+
+          <div className="location-options">
+
+            <button
+              type="button"
+              className={
+                locationMode === "gps"
+                  ? "selected"
+                  : ""
+              }
+              onClick={getGPS}
+            >
+              📡 Current GPS
+            </button>
+
+            <button
+              type="button"
+              className={
+                locationMode === "profile"
+                  ? "selected"
+                  : ""
+              }
+              onClick={() =>
+                setLocationMode("profile")
+              }
+            >
+              🏠 Profile address
+            </button>
+
+            <button
+              type="button"
+              className={
+                locationMode === "custom"
+                  ? "selected"
+                  : ""
+              }
+              onClick={() =>
+                setLocationMode("custom")
+              }
+            >
+              🔎 Other location
+            </button>
+
+          </div>
+
+          {locationMode === "custom" && (
+            <input
+              className="location-input"
+              placeholder="Enter area, landmark, address or city"
+              value={customLocation}
+              onChange={e =>
+                setCustomLocation(
+                  e.target.value
+                )
+              }
+            />
+          )}
+
+          <div className="radius-row">
+
+            {[1, 2, 5, 15].map(
+              value => (
+                <button
+                  type="button"
+                  key={value}
+                  className={
+                    radius === value
+                      ? "radius-selected"
+                      : ""
+                  }
+                  onClick={() =>
+                    setRadius(value)
+                  }
+                >
+                  {value} km
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              className="find-button"
+              onClick={findHealthcare}
+              disabled={placeLoading}
+            >
+              {placeLoading
+                ? "Finding..."
+                : "Find nearby care →"}
+            </button>
+
+          </div>
+
+          {locationLabel && (
+            <div className="location-label">
+              📍 Searching around{" "}
+              <strong>
+                {locationLabel}
+              </strong>
+            </div>
+          )}
+
+          {locationError && (
+            <div className="location-error">
+              {locationError}
+            </div>
+          )}
+
+          {places.length > 0 &&
+            !placeLoading && (
+              <div className="places">
+
+                <h3>
+                  {nearbyPlaces.length} facilities
+                  within {radius} km
+                </h3>
+
+                <div className="places-grid">
+
+                  {nearbyPlaces.map(
+                    place => (
+
+                      <div
+                        className="place-card"
+                        key={place.id}
+                      >
+
+                        <div className="place-top">
+
+                          <div className="place-icon">
+                            {place.type ===
+                            "Clinic"
+                              ? "⚕"
+                              : "🏥"}
+                          </div>
+
+                          <span>
+                            {place.type}
+                          </span>
+
+                        </div>
+
+                        <h3>
+                          {place.name}
+                        </h3>
+
+                        <p>
+                          📍 {place.address}
+                        </p>
+
+                        <strong>
+                          {place.distance.toFixed(
+                            1
+                          )}{" "}
+                          km away
+                        </strong>
+
+                        {place.emergency && (
+                          <div className="emergency-tag">
+                            Emergency listed
+                          </div>
+                        )}
+
+                        <div className="place-actions">
+
+                          {place.phone && (
+                            <a
+                              href={`tel:${place.phone}`}
+                            >
+                              📞 Call
+                            </a>
+                          )}
+
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            🗺 Directions
+                          </a>
+
+                        </div>
+
+                      </div>
+
+                    )
+                  )}
+
+                </div>
+
+              </div>
+            )}
+
+        </section>
+
+      </main>
+
+
+      {/* ─────────────────────────────
+          PROFILE MODAL
+      ───────────────────────────── */}
+
+      {profileOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() =>
+            setProfileOpen(false)
+          }
+        >
+
+          <div
+            className="modal-card profile-modal"
+            onClick={e =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="modal-header">
+
+              <div>
+                <span className="eyebrow">
+                  YOUR PROFILE
+                </span>
+
+                <h2>
+                  Health context
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                className="close-button"
+                onClick={() =>
+                  setProfileOpen(false)
+                }
+              >
+                ×
+              </button>
+
+            </div>
+
+
+            <div className="profile-grid">
+
+              <label>
+                Full name
+
+                <input
+                  value={form.name}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      name: e.target.value
+                    })
+                  }
+                />
+              </label>
+
+
+              <label>
+                Email
+
+                <input
+                  value={form.email}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      email: e.target.value
+                    })
+                  }
+                />
+              </label>
+
+
+              <label>
+                Age
+
+                <input
+                  type="number"
+                  value={form.age}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      age: e.target.value
+                    })
+                  }
+                />
+              </label>
+
+
+              <label>
+                Gender
+
+                <input
+                  value={form.gender}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      gender: e.target.value
+                    })
+                  }
+                />
+              </label>
+
+
+              <label className="wide">
+                Address
+
+                <input
+                  value={form.address}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      address:
+                        e.target.value
+                    })
+                  }
+                  placeholder="House / street / area"
+                />
+              </label>
+
+
+              <label>
+                City
+
+                <input
+                  value={form.city}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      city: e.target.value
+                    })
+                  }
+                />
+              </label>
+
+
+              <label>
+                Blood group
+
+                <input
+                  value={form.bloodGroup}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      bloodGroup:
+                        e.target.value
+                    })
+                  }
+                  placeholder="Optional"
+                />
+              </label>
+
+
+              <label className="wide">
+                Health history
+
+                <textarea
+                  value={form.conditions}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      conditions:
+                        e.target.value
+                    })
+                  }
+                  placeholder="Existing conditions, previous surgeries, important history..."
+                />
+              </label>
+
+
+              <label className="wide">
+                Allergies
+
+                <textarea
+                  value={form.allergies}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      allergies:
+                        e.target.value
+                    })
+                  }
+                  placeholder="Medicines, foods or other allergies"
+                />
+              </label>
+
+
+              <label className="wide">
+                Current medications
+
+                <textarea
+                  value={form.medications}
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      medications:
+                        e.target.value
+                    })
+                  }
+                  placeholder="Medicines you currently take"
+                />
+              </label>
+
+
+              <label className="wide">
+                Emergency contact
+
+                <input
+                  value={
+                    form.emergencyContact
+                  }
+                  onChange={e =>
+                    setForm({
+                      ...form,
+                      emergencyContact:
+                        e.target.value
+                    })
+                  }
+                  placeholder="Phone number"
+                />
+              </label>
+
+            </div>
+
+
+            <div className="modal-actions">
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setProfileOpen(false)
+                }
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  saveProfile(form);
+                  setProfileOpen(false);
+                }}
+              >
+                Save health context
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+
+      {/* ─────────────────────────────
+          DOCTOR SUMMARY MODAL
+      ───────────────────────────── */}
+
+      {doctorOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() =>
+            setDoctorOpen(false)
+          }
+        >
+
+          <div
+            className="modal-card doctor-modal"
+            onClick={e =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="modal-header">
+
+              <div>
+
+                <span className="eyebrow">
+                  DOCTOR-READY SUMMARY
+                </span>
+
+                <h2>
+                  Your TRACE summary
+                </h2>
+
+              </div>
+
+              <button
+                type="button"
+                className="close-button"
+                onClick={() =>
+                  setDoctorOpen(false)
+                }
+              >
+                ×
+              </button>
+
+            </div>
+
+
+            {!result ? (
+
+              <div className="empty-summary">
+
+                <div>🩺</div>
+
+                <h3>
+                  Analyze your symptoms first
+                </h3>
+
+                <p>
+                  Once TRACE has processed
+                  your description, this space
+                  will show a concise summary
+                  you can use when speaking with
+                  a healthcare professional.
+                </p>
+
+              </div>
+
+            ) : (
+
+              <>
+
+                <div className="doctor-patient">
+
+                  <div>
+                    <span>Patient</span>
+
+                    <strong>
+                      {profile.name ||
+                        "Not provided"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>Age</span>
+
+                    <strong>
+                      {profile.age ||
+                        "Not provided"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span>City</span>
+
+                    <strong>
+                      {profile.city ||
+                        "Not provided"}
+                    </strong>
+                  </div>
+
+                </div>
+
+
+                <div className="doctor-section">
+
+                  <h3>
+                    Reported symptoms
+                  </h3>
+
+                  <p>
+                    {symptoms}
+                  </p>
+
+                </div>
+
+
+                <div className="doctor-section">
+
+                  <h3>
+                    TRACE assessment
+                  </h3>
+
+                  <p>
+                    {result.summary
+                      ?.primaryPattern ||
+                      "Assessment available"}
+                  </p>
+
+                  {result.summary
+                    ?.severity && (
+
+                    <p>
+                      Reported severity:{" "}
+
+                      <strong>
+                        {
+                          result.summary
+                            .severity
+                        }
+                      </strong>
+                    </p>
+
+                  )}
+
+                </div>
+
+
+                <div className="doctor-section">
+
+                  <h3>
+                    Relevant health context
+                  </h3>
+
+                  <ul>
+
+                    <li>
+                      Age:{" "}
+                      {profile.age ||
+                        "Not provided"}
+                    </li>
+
+                    <li>
+                      Gender:{" "}
+                      {profile.gender ||
+                        "Not provided"}
+                    </li>
+
+                    <li>
+                      Medical history:{" "}
+                      {profile.conditions ||
+                        "None provided"}
+                    </li>
+
+                    <li>
+                      Allergies:{" "}
+                      {profile.allergies ||
+                        "None provided"}
+                    </li>
+
+                    <li>
+                      Medications:{" "}
+                      {profile.medications ||
+                        "None provided"}
+                    </li>
+
+                    <li>
+                      Blood group:{" "}
+                      {profile.bloodGroup ||
+                        "Not provided"}
+                    </li>
+
+                  </ul>
+
+                </div>
+
+
+                <div className="doctor-section">
+
+                  <h3>
+                    Questions for clinician
+                  </h3>
+
+                  <ul>
+
+                    {(
+                      result.decisionChangingQuestions ||
+                      []
+                    ).map(
+                      (question, index) => (
+
+                        <li key={index}>
+                          {question}
+                        </li>
+
+                      )
+                    )}
+
+                  </ul>
+
+                </div>
+
+
+                <div className="doctor-note">
+
+                  TRACE is a reasoning and
+                  information-support tool. This
+                  summary is not a medical
+                  diagnosis and should be reviewed
+                  by a qualified healthcare
+                  professional.
+
+                </div>
+
+              </>
+
+            )}
+
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
+/* ─────────────────────────────────
+   RESULT CARD COMPONENT
+───────────────────────────────── */
+
+function ResultCard({
+  title,
+  items,
+  numbered = false
+}) {
+  const list = Array.isArray(items)
+    ? items
+    : items
+      ? [items]
+      : [];
+
+  return (
+    <div className="result-card">
+
+      <h3>
+        {title}
+      </h3>
+
+      {list.length === 0 ? (
+
+        <p className="muted">
+          No additional information
+          available.
+        </p>
+
+      ) : (
+
+        <ul>
+
+          {list.map(
+            (item, index) => (
+
+              <li key={index}>
+
+                {numbered && (
+                  <span className="question-number">
+                    {index + 1}
+                  </span>
+                )}
+
+                <span>
+
+                  {typeof item === "string"
+                    ? item
+                    : item?.question ||
+                      item?.text ||
+                      item?.item ||
+                      JSON.stringify(item)}
+
+                </span>
+
+              </li>
+
+            )
+          )}
+
+        </ul>
+
+      )}
+
+    </div>
   );
 }
 

@@ -1,467 +1,940 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-require('dotenv').config();
+// ─── TRACE BACKEND ─────────────────────────────────────────────
+
+const express = require("express");
+const cors = require("cors");
 
 const app = express();
-const PORT = 5000;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: "10mb" }));
 
-// ─── MEDICATION DATABASE ───
-const MEDICATIONS = [
-    { name: 'Metformin', keywords: ['metformin', 'glucophage'], category: 'Antidiabetic' },
-    { name: 'Amlodipine', keywords: ['amlodipine', 'norvasc'], category: 'Antihypertensive' },
-    { name: 'Lisinopril', keywords: ['lisinopril', 'prinivil', 'zestril'], category: 'Antihypertensive' },
-    { name: 'Atorvastatin', keywords: ['atorvastatin', 'lipitor'], category: 'Statin' },
-    { name: 'Levothyroxine', keywords: ['levothyroxine', 'synthroid'], category: 'Thyroid' },
-    { name: 'Omeprazole', keywords: ['omeprazole', 'prilosec'], category: 'PPI' },
-    { name: 'Metoprolol', keywords: ['metoprolol', 'lopressor'], category: 'Beta Blocker' },
-    { name: 'Losartan', keywords: ['losartan', 'cozaar'], category: 'ARB' },
-    { name: 'Albuterol', keywords: ['albuterol', 'ventolin'], category: 'Bronchodilator' },
-    { name: 'Prednisone', keywords: ['prednisone', 'deltasone'], category: 'Corticosteroid' },
-    { name: 'Aspirin', keywords: ['aspirin', 'ecotrin'], category: 'Antiplatelet' },
-    { name: 'Ibuprofen', keywords: ['ibuprofen', 'advil', 'motrin'], category: 'NSAID' },
-    { name: 'Acetaminophen', keywords: ['acetaminophen', 'tylenol'], category: 'Analgesic' },
-    { name: 'Warfarin', keywords: ['warfarin', 'coumadin'], category: 'Anticoagulant' },
-    { name: 'Furosemide', keywords: ['furosemide', 'lasix'], category: 'Diuretic' },
-];
+// ─── HELPERS ──────────────────────────────────────────────────
 
-// ─── SMART SYMPTOM ANALYZER ───
-function smartSymptomAnalysis(text) {
-    const lowerText = text.toLowerCase();
-    let matchedSymptoms = [];
-    let highestSeverity = 'mild';
-    let allRemedies = [];
-    let allAdvice = [];
-    let emergency = false;
+function unique(items) {
+    return [...new Set(items.filter(Boolean))];
+}
 
-    // Emergency keywords (English + Hindi + Marathi)
+function containsAny(text, words) {
+    return words.some(word => text.includes(word));
+}
+
+function detectBodyPart(text) {
+    const bodyParts = {
+        head: ["head", "scalp", "forehead"],
+        eye: ["eye", "eyes", "vision", "sight"],
+        ear: ["ear", "ears", "hearing"],
+        nose: ["nose", "sinus", "nasal"],
+        throat: ["throat"],
+        neck: ["neck"],
+        chest: ["chest"],
+        back: ["back", "spine"],
+        shoulder: ["shoulder"],
+        arm: ["arm", "elbow", "wrist", "forearm"],
+        hand: ["hand", "finger", "thumb", "palm"],
+        stomach: ["stomach", "abdomen", "belly", "tummy"],
+        kidney: ["kidney"],
+        bladder: ["bladder"],
+        leg: ["leg", "knee", "ankle", "calf", "thigh"],
+        foot: ["foot", "feet", "toe", "heel"],
+        hip: ["hip"],
+        skin: ["skin"],
+        muscle: ["muscle"],
+        joint: ["joint"]
+    };
+
+    for (const [part, keywords] of Object.entries(bodyParts)) {
+        if (containsAny(text, keywords)) {
+            return part;
+        }
+    }
+
+    return "";
+}
+
+function detectPainType(text) {
+    const painTypes = {
+        throbbing: ["throbbing", "pulsating", "pounding"],
+        sharp: ["sharp", "stabbing", "shooting", "piercing"],
+        burning: ["burning", "stinging"],
+        aching: ["aching", "dull", "sore"],
+        cramping: ["cramping", "spasming", "tightening"]
+    };
+
+    for (const [type, keywords] of Object.entries(painTypes)) {
+        if (containsAny(text, keywords)) {
+            return type;
+        }
+    }
+
+    return "";
+}
+
+function detectSymptoms(text) {
+    const symptomTypes = {
+        pain: ["pain", "ache", "hurt", "sore", "discomfort"],
+        fever: ["fever", "temperature", "chills"],
+        cough: ["cough", "coughing", "phlegm"],
+        cold: ["cold", "runny nose", "stuffy", "sneeze"],
+        vomiting: ["vomit", "vomiting", "nausea", "threw up"],
+        diarrhea: [
+            "diarrhea",
+            "diarrhoea",
+            "loose motion",
+            "watery stool"
+        ],
+        dizziness: [
+            "dizziness",
+            "dizzy",
+            "vertigo",
+            "lightheaded"
+        ],
+        fatigue: [
+            "tired",
+            "fatigue",
+            "exhausted",
+            "weak",
+            "sleepy"
+        ],
+        allergy: [
+            "allergy",
+            "allergic",
+            "hives",
+            "rash",
+            "itching"
+        ],
+        swelling: [
+            "swelling",
+            "swollen",
+            "inflamed",
+            "puffy"
+        ],
+        breathing: [
+            "breath",
+            "breathing",
+            "gasp",
+            "wheeze"
+        ]
+    };
+
+    const detected = [];
+
+    for (const [type, keywords] of Object.entries(symptomTypes)) {
+        if (containsAny(text, keywords)) {
+            detected.push(type);
+        }
+    }
+
+    return detected;
+}
+
+function detectSeverity(text) {
+    if (
+        containsAny(text, [
+            "severe",
+            "extreme",
+            "unbearable",
+            "worst",
+            "agonizing"
+        ])
+    ) {
+        return "severe";
+    }
+
+    if (
+        containsAny(text, [
+            "moderate",
+            "significant",
+            "considerable"
+        ])
+    ) {
+        return "moderate";
+    }
+
+    return "mild";
+}
+
+function detectEmergency(text) {
     const emergencyKeywords = [
-        'chest pain', 'heart pain', 'chest tightness', 'chest pressure', 'pain in chest',
-        'heart attack', 'cardiac arrest', 'myocardial infarction', 'crushing chest pain',
-        'difficulty breathing', 'hard to breathe', 'can\'t breathe', 'shortness of breath',
-        'breathless', 'gasping', 'breathing problem', 'not breathing', 'struggling to breathe',
-        'stroke', 'facial droop', 'arm weakness', 'speech difficulty', 'slurred speech',
-        'unconscious', 'passed out', 'fainted', 'blacked out', 'lost consciousness',
-        'seizure', 'convulsion', 'fitting', 'shaking', 'severe bleeding', 'heavy bleeding',
-        'anaphylaxis', 'severe allergy', 'swelling of lips', 'swelling of tongue',
-        'suicide', 'kill myself', 'want to die', 'self harm', 'overdose', 'poisoning',
-        'सीने में दर्द', 'दिल का दर्द', 'सांस लेने में तकलीफ', 'सांस नहीं आ रही',
-        'हार्ट अटैक', 'बेहोश', 'फिट', 'खून बह रहा',
-        'छातीत दुखणे', 'हृदय दुखणे', 'श्वास घेण्यास त्रास', 'हार्ट अटॅक',
-        'बेशुद्ध', 'फिट येणे', 'रक्तस्त्राव'
+        "chest pain",
+        "chest pressure",
+        "chest tightness",
+        "difficulty breathing",
+        "can't breathe",
+        "cannot breathe",
+        "severe breathing",
+        "unconscious",
+        "fainted",
+        "seizure",
+        "stroke",
+        "severe bleeding",
+        "choking",
+        "anaphylaxis",
+        "face drooping",
+        "slurred speech",
+        "sudden weakness"
     ];
 
-    // Moderate keywords
-    const moderateKeywords = [
-        'fever', 'high temperature', 'feverish', 'hot', 'temperature', 'high fever',
-        'vomiting', 'vomit', 'threw up', 'nausea', 'sick to stomach', 'puking',
-        'dizziness', 'dizzy', 'lightheaded', 'vertigo', 'spinning', 'faint',
-        'stomach pain', 'abdominal pain', 'belly ache', 'tummy hurts', 'stomach ache',
-        'diarrhoea', 'diarrhea', 'loose motion', 'watery stool', 'dehydration',
-        'severe headache', 'worst headache', 'migraine with aura',
-        'बुखार', 'उल्टी', 'चक्कर आना', 'पेट दर्द', 'दस्त', 'निर्जलीकरण',
-        'तेज सिरदर्द', 'माइग्रेन',
-        'ताप', 'उलटी', 'चक्कर येणे', 'पोटदुखी', 'जुलाब', 'निर्जलीकरण',
-        'तीव्र डोकेदुखी', 'मायग्रेन'
+    return containsAny(text, emergencyKeywords);
+}
+
+// ─── PROFILE CONTEXT ──────────────────────────────────────────
+
+function buildProfileContext(profile = {}) {
+    const context = [];
+
+    if (profile.age) {
+        context.push(`Age: ${profile.age}`);
+    }
+
+    if (profile.gender) {
+        context.push(`Gender: ${profile.gender}`);
+    }
+
+    if (profile.city) {
+        context.push(`City: ${profile.city}`);
+    }
+
+    if (profile.conditions) {
+        context.push(
+            `Relevant medical history: ${profile.conditions}`
+        );
+    }
+
+    if (profile.allergies) {
+        context.push(
+            `Allergies: ${profile.allergies}`
+        );
+    }
+
+    if (profile.medications) {
+        context.push(
+            `Current medications: ${profile.medications}`
+        );
+    }
+
+    if (profile.bloodGroup) {
+        context.push(
+            `Blood group: ${profile.bloodGroup}`
+        );
+    }
+
+    return context;
+}
+
+// ─── REASONING RECEIPT ────────────────────────────────────────
+
+function buildReasoningReceipt({
+    bodyPart,
+    painType,
+    symptoms,
+    severity,
+    emergency,
+    profile
+}) {
+    const possibleExplanations = [];
+
+    if (symptoms.includes("pain")) {
+        possibleExplanations.push({
+            label: "Musculoskeletal cause",
+            supports:
+                "Pain is present in the described area.",
+            missing:
+                "Recent injury, overuse, movement pattern, onset, and physical examination."
+        });
+
+        possibleExplanations.push({
+            label: "Nerve-related irritation",
+            supports:
+                "Nerve irritation can sometimes produce localized or radiating pain.",
+            missing:
+                "Numbness, tingling, weakness, radiation pattern, and neurological examination."
+        });
+
+        possibleExplanations.push({
+            label: "Inflammatory cause",
+            supports:
+                "Inflammation can produce pain and tenderness.",
+            missing:
+                "Swelling, redness, warmth, fever, duration, and examination findings."
+        });
+
+        possibleExplanations.push({
+            label: "Other underlying cause",
+            supports:
+                "Text alone cannot safely exclude less common causes.",
+            missing:
+                "Medical history, medications, risk factors, vital signs, and testing when indicated."
+        });
+    }
+
+    if (symptoms.includes("fever")) {
+        possibleExplanations.push({
+            label: "Infectious or inflammatory process",
+            supports:
+                "Fever can occur with infections and inflammatory conditions.",
+            missing:
+                "Measured temperature, duration, exposures, and associated symptoms."
+        });
+    }
+
+    if (
+        symptoms.includes("cough") ||
+        symptoms.includes("cold")
+    ) {
+        possibleExplanations.push({
+            label: "Respiratory irritation or infection",
+            supports:
+                "Cough and cold symptoms can have several common causes.",
+            missing:
+                "Duration, fever, breathing status, exposures, and other respiratory symptoms."
+        });
+    }
+
+    if (symptoms.includes("dizziness")) {
+        possibleExplanations.push({
+            label: "Multiple possible causes",
+            supports:
+                "Dizziness can result from several different mechanisms.",
+            missing:
+                "Timing, triggers, hydration, medications, blood pressure, and neurological symptoms."
+        });
+    }
+
+    const decisionChangingQuestions = [
+        "When did this start, and did it begin suddenly or gradually?",
+        "Is it getting better, worse, or staying the same?",
+        "What other symptoms are happening at the same time?",
+        "Are there recent injuries, medicines, medical conditions, or relevant risk factors?"
     ];
 
-    // Mild keywords
-    const mildKeywords = [
-        'cold', 'runny nose', 'stuffy nose', 'sneezing', 'congestion', 'nasal', 'sinus', 'sniffles',
-        'cough', 'coughing', 'dry cough', 'wet cough', 'phlegm',
-        'headache', 'head pain', 'migraine', 'head hurting',
-        'body ache', 'body pain', 'muscle pain', 'muscle ache', 'sore muscles', 'joint pain',
-        'sore throat', 'throat pain', 'scratchy throat', 'throat irritation',
-        'fatigue', 'tired', 'exhausted', 'weakness', 'low energy', 'sleepy', 'drained',
-        'allergy', 'allergic', 'hives', 'rash', 'itching',
-        'सर्दी', 'खांसी', 'शरीर में दर्द', 'सिरदर्द', 'गले में खराश',
-        'थकान', 'एलर्जी', 'चकत्ते', 'खुजली',
-        'सर्दी', 'खोकला', 'शरीर दुखणे', 'डोकेदुखी', 'घसा दुखणे',
-        'थकवा', 'ऍलर्जी', 'पुरळ', 'खाज'
-    ];
-
-    // Check emergency
-    for (const word of emergencyKeywords) {
-        if (lowerText.includes(word)) {
-            highestSeverity = 'severe';
-            emergency = true;
-            matchedSymptoms.push('emergency');
-            allAdvice.push('🚨 THIS IS A MEDICAL EMERGENCY. Call 1066 immediately.');
-            allRemedies.push('Call 1066 immediately');
-            break;
-        }
+    if (symptoms.includes("pain")) {
+        decisionChangingQuestions.unshift(
+            "Is the pain triggered by movement or exertion, or does it occur at rest?"
+        );
     }
 
-    // Check moderate
-    if (!emergency) {
-        for (const word of moderateKeywords) {
-            if (lowerText.includes(word)) {
-                highestSeverity = 'moderate';
-                matchedSymptoms.push(word);
-                allAdvice.push('⚠️ These symptoms need attention. Monitor closely and consult a doctor if they worsen.');
-                allRemedies.push('Rest', 'Stay hydrated', 'Monitor symptoms', 'Consult a doctor if persists');
-                break;
-            }
-        }
+    if (
+        bodyPart === "arm" ||
+        bodyPart === "shoulder"
+    ) {
+        decisionChangingQuestions.push(
+            "Is there numbness, tingling, weakness, swelling, or color change in the arm or hand?"
+        );
     }
 
-    // Check mild
-    if (!emergency && highestSeverity !== 'moderate') {
-        for (const word of mildKeywords) {
-            if (lowerText.includes(word)) {
-                highestSeverity = 'mild';
-                matchedSymptoms.push(word);
-                allAdvice.push('✅ These symptoms appear mild. Rest and home remedies should help.');
-                allRemedies.push('Rest and stay hydrated', 'Monitor your symptoms');
-                break;
-            }
-        }
+    // Use information already supplied in the profile.
+    if (profile?.conditions) {
+        decisionChangingQuestions.push(
+            "Could the current symptom be related to an existing medical condition?"
+        );
     }
 
-    // If no symptoms matched
-    if (matchedSymptoms.length === 0) {
-        const healthWords = ['pain', 'hurt', 'ache', 'sick', 'ill', 'unwell', 'disease', 'problem', 'issue'];
-        let foundHealth = false;
-        for (const word of healthWords) {
-            if (lowerText.includes(word)) {
-                foundHealth = true;
-                break;
-            }
-        }
-        if (foundHealth) {
-            return {
-                severity: 'mild',
-                remedies: ['Rest and stay hydrated', 'Monitor your symptoms', 'If symptoms persist, consult a doctor'],
-                advice: 'Please describe your symptoms more clearly. If you are feeling unwell, consult a healthcare professional.',
-                emergency: false,
-                matched: ['general health concern']
-            };
-        }
-        return {
-            severity: 'mild',
-            remedies: ['Rest and stay hydrated', 'Monitor your symptoms', 'If symptoms persist or worsen, consult a doctor'],
-            advice: 'Could not identify specific symptoms from your description. If you are feeling unwell, please consult a healthcare professional.',
-            emergency: false,
-            matched: []
-        };
+    if (profile?.medications) {
+        decisionChangingQuestions.push(
+            "Did the symptom begin after starting or changing any medication?"
+        );
     }
-
-    const uniqueRemedies = [...new Set(allRemedies)];
 
     return {
-        severity: highestSeverity,
-        remedies: uniqueRemedies.slice(0, 6),
-        advice: allAdvice[0] || 'Please consult a healthcare professional for proper medical advice.',
-        emergency: emergency,
-        matched: matchedSymptoms
+        evidenceStatus: emergency
+            ? "High-priority safety signal detected from the text."
+            : "Limited — rule-based triage from the information entered; no physical examination or diagnostic test was performed.",
+
+        observedEvidence: unique([
+            bodyPart
+                ? `Body area detected: ${bodyPart}`
+                : "",
+
+            painType
+                ? `Pain description detected: ${painType}`
+                : "",
+
+            symptoms.length
+                ? `Symptoms detected: ${symptoms.join(", ")}`
+                : "",
+
+            `Reported severity language: ${severity}`,
+
+            profile?.age
+                ? `Profile context available: age ${profile.age}`
+                : "",
+
+            profile?.conditions
+                ? "Existing health history supplied"
+                : "",
+
+            profile?.allergies
+                ? "Allergy information supplied"
+                : "",
+
+            profile?.medications
+                ? "Current medication information supplied"
+                : ""
+        ]),
+
+        uncertainty:
+            "TRACE is not claiming a diagnosis. The same symptom can have different causes, and important clinical information may still be missing.",
+
+        possibleExplanations,
+
+        decisionChangingQuestions: unique(
+            decisionChangingQuestions
+        ).slice(0, 6)
     };
 }
 
-function extractMedications(text) {
-    const results = [];
-    const lines = text.split(/[\n\.\,\;]/);
-    for (const line of lines) {
-        const l = line.toLowerCase();
-        if (l.length < 5 || l.length > 300) continue;
-        const hasMedKeywords = ['mg', 'tablet', 'capsule', 'take', 'daily', 'twice', 'once', 'prescription', 'medication'].some(k => l.includes(k));
-        if (!hasMedKeywords) continue;
-        for (const med of MEDICATIONS) {
-            if (med.keywords.some(k => l.includes(k))) {
-                let status = 'unknown';
-                if (l.includes('stop') || l.includes('discontinue')) status = 'stopped';
-                else if (l.includes('continue') || l.includes('take')) status = 'active';
-                const dateMatch = l.match(/(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4})/i) ||
-                                  l.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
-                const date = dateMatch ? dateMatch[0] : 'Unknown date';
-                results.push({
-                    name: med.name,
-                    category: med.category,
-                    status,
-                    date,
-                    instruction: line.trim().substring(0, 150)
-                });
-                break;
-            }
+// ─── GUIDANCE ENGINE ──────────────────────────────────────────
+
+function buildUserGuidance({
+    bodyPart,
+    painType,
+    symptoms,
+    severity,
+    emergency
+}) {
+    const whatMayBeHappening = [];
+    const whyItMayBeHappening = [];
+    const whatToDoNow = [];
+    const whenToSeekCare = [];
+
+    // ─────────────────────────────────────────────
+    // WHAT MAY BE HAPPENING
+    // ─────────────────────────────────────────────
+    if (bodyPart && painType) {
+        whatMayBeHappening.push(
+            `Your symptoms sound like ${painType} discomfort involving the ${bodyPart}.`
+        );
+    } else if (bodyPart) {
+        whatMayBeHappening.push(
+            `Your symptoms appear to be mainly affecting the ${bodyPart}.`
+        );
+    } else if (symptoms.length) {
+        whatMayBeHappening.push(
+            `TRACE detected ${symptoms.join(", ")} from what you described.`
+        );
+    } else {
+        whatMayBeHappening.push(
+            "There is not enough symptom information yet to identify a useful pattern."
+        );
+    }
+
+    // ─────────────────────────────────────────────
+    // WHY IT MAY BE HAPPENING
+    // ─────────────────────────────────────────────
+    if (painType === "sharp") {
+        whyItMayBeHappening.push(
+            "Sharp pain can occur when muscles, joints, nerves, or other tissues are irritated. The exact cause cannot be determined from text alone."
+        );
+    } else if (painType === "burning") {
+        whyItMayBeHappening.push(
+            "Burning or stinging sensations can occur with nerve or tissue irritation. More information is needed to distinguish between possible causes."
+        );
+    } else if (painType === "throbbing") {
+        whyItMayBeHappening.push(
+            "Throbbing or pulsating discomfort can have several causes. Timing, triggers and associated symptoms are important for narrowing them."
+        );
+    } else if (painType === "cramping") {
+        whyItMayBeHappening.push(
+            "Cramping can occur when muscles or other tissues contract or become irritated."
+        );
+    } else if (painType === "aching") {
+        whyItMayBeHappening.push(
+            "Aching or dull discomfort can occur with common musculoskeletal or inflammatory patterns, among other causes."
+        );
+    } else {
+        whyItMayBeHappening.push(
+            "The same symptom can have several different causes, so TRACE avoids presenting one diagnosis as certain."
+        );
+    }
+
+    // ─────────────────────────────────────────────
+    // EMERGENCY
+    // ─────────────────────────────────────────────
+    if (emergency) {
+        whatToDoNow.push(
+            "Do not rely on home remedies for this symptom pattern."
+        );
+
+        whatToDoNow.push(
+            "Seek urgent medical assessment now. If the situation is serious or rapidly worsening, call 112."
+        );
+    }
+
+    // ─────────────────────────────────────────────
+    // SEVERE
+    // ─────────────────────────────────────────────
+    else if (severity === "severe") {
+        whatToDoNow.push(
+            "Because the symptom is described as severe, prioritize medical assessment rather than trying to manage it only at home."
+        );
+
+        whatToDoNow.push(
+            "Avoid activities that clearly make the symptom worse while arranging appropriate medical care."
+        );
+    }
+
+    // ─────────────────────────────────────────────
+    // MILD — PRACTICAL SELF CARE
+    // ─────────────────────────────────────────────
+    else if (severity === "mild") {
+
+        if (symptoms.includes("pain")) {
+            whatToDoNow.push(
+                "Rest the affected area and avoid movements or activities that clearly increase the pain."
+            );
+
+            whatToDoNow.push(
+                "Stay hydrated and maintain regular meals unless you have been advised otherwise."
+            );
+        }
+
+        if (bodyPart === "head") {
+            whatToDoNow.push(
+                "Rest in a quiet, comfortable environment and consider taking a break from bright screens."
+            );
+        }
+
+        if (symptoms.includes("fever")) {
+            whatToDoNow.push(
+                "Rest and drink fluids regularly to reduce the risk of dehydration."
+            );
+
+            whatToDoNow.push(
+                "If possible, measure your temperature and keep track of whether it is rising or improving."
+            );
+        }
+
+        if (
+            symptoms.includes("cough") ||
+            symptoms.includes("cold")
+        ) {
+            whatToDoNow.push(
+                "Rest, drink fluids regularly, and avoid smoke, dust and other respiratory irritants."
+            );
+        }
+
+        if (
+            symptoms.includes("vomiting")
+        ) {
+            whatToDoNow.push(
+                "Take small, frequent sips of water or an oral rehydration drink rather than drinking a large amount at once."
+            );
+
+            whatToDoNow.push(
+                "When tolerated, choose light foods and avoid heavy or irritating meals."
+            );
+        }
+
+        if (symptoms.includes("diarrhea")) {
+            whatToDoNow.push(
+                "Focus on replacing fluids and electrolytes with water or an oral rehydration solution."
+            );
+        }
+
+        if (symptoms.includes("dizziness")) {
+            whatToDoNow.push(
+                "Sit or lie down if you feel dizzy and get up slowly once you feel steadier."
+            );
+
+            whatToDoNow.push(
+                "Drink fluids and avoid driving or other activities where dizziness could put you at risk."
+            );
+        }
+
+        if (symptoms.includes("fatigue")) {
+            whatToDoNow.push(
+                "Prioritize sleep, hydration and regular meals, and reduce strenuous activity while you recover."
+            );
+        }
+
+        if (symptoms.includes("allergy")) {
+            whatToDoNow.push(
+                "Avoid the suspected trigger if you know what caused the reaction."
+            );
+        }
+
+        if (!whatToDoNow.length) {
+            whatToDoNow.push(
+                "Rest, stay hydrated, monitor the symptom and note anything that makes it better or worse."
+            );
         }
     }
-    return results;
-}
 
-function extractInstructions(text) {
-    const results = [];
-    const patterns = [
-        { pattern: /repeat\s+(\w+)\s+test/i, type: 'follow-up' },
-        { pattern: /follow[- ]?up\s+in\s+(\d+)\s*(weeks?|months?)/i, type: 'follow-up' },
-        { pattern: /review\s+(\w+)\s+result/i, type: 'review' },
-        { pattern: /recheck\s+(\w+)/i, type: 'follow-up' },
-        { pattern: /next\s+appointment/i, type: 'appointment' },
-    ];
-    for (const p of patterns) {
-        const match = text.match(p.pattern);
-        if (match) {
-            results.push({
-                text: match[0],
-                date: extractDate(text),
-                type: p.type
-            });
-        }
-    }
-    return results;
-}
+    // ─────────────────────────────────────────────
+    // MODERATE
+    // ─────────────────────────────────────────────
+    else {
+        whatToDoNow.push(
+            "Use supportive measures such as rest, hydration and avoiding activities that worsen the symptom."
+        );
 
-function extractDate(text) {
-    const patterns = [
-        /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i,
-        /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/,
-        /(\d{1,2})[-/](\d{1,2})[-/](\d{4})/,
-    ];
-    for (const pattern of patterns) {
-        const match = text.match(pattern);
-        if (match) return match[0];
-    }
-    return 'Unknown date';
-}
-
-function reconcile(medications) {
-    const conflicts = [];
-    const confirmed = [];
-    const outdated = [];
-    const unknown = [];
-    const timeline = [];
-
-    const groups = {};
-    for (const med of medications) {
-        if (!groups[med.name]) groups[med.name] = [];
-        groups[med.name].push(med);
+        whatToDoNow.push(
+            "If the symptom persists, worsens, repeatedly returns, or interferes with normal activities, arrange a healthcare assessment."
+        );
     }
 
-    for (const [name, entries] of Object.entries(groups)) {
-        if (entries.length > 1) {
-            const statuses = entries.map(e => e.status);
-            const hasActive = statuses.includes('active');
-            const hasStopped = statuses.includes('stopped');
-            if (hasActive && hasStopped) {
-                conflicts.push({
-                    title: `Medication conflict: ${name}`,
-                    detail: `Records show both "continue" and "stop" instructions for ${name}.`,
-                    sources: entries.map(e => `${e.date}`).join('; '),
-                    severity: 'high'
-                });
-            }
-        }
+    // ─────────────────────────────────────────────
+    // WHEN TO SEEK CARE
+    // ─────────────────────────────────────────────
+    if (emergency) {
+        whenToSeekCare.push(
+            "Seek emergency medical attention now."
+        );
+    } else if (severity === "severe") {
+        whenToSeekCare.push(
+            "Seek prompt medical assessment because the symptom is severe."
+        );
+    } else if (severity === "moderate") {
+        whenToSeekCare.push(
+            "Arrange medical assessment if the symptom persists, worsens, or significantly affects normal activity."
+        );
+    } else {
+        whenToSeekCare.push(
+            "Seek medical care if the symptom persists, gets worse, repeatedly returns, or new concerning symptoms appear."
+        );
     }
 
-    for (const [name, entries] of Object.entries(groups)) {
-        const active = entries.filter(e => e.status === 'active');
-        if (active.length > 0) {
-            const isConflict = conflicts.some(c => c.title.includes(name));
-            if (!isConflict) {
-                confirmed.push({
-                    text: `${name} — active medication`,
-                    source: active[0].date || 'Unknown date',
-                    category: active[0].category || 'Medication'
-                });
-            }
-        }
-    }
+    whenToSeekCare.push(
+        "Get urgent help for severe breathing difficulty, chest pressure or pain, fainting, seizure, major bleeding, sudden weakness, facial drooping, slurred speech, or another rapidly worsening serious symptom."
+    );
 
-    for (const [name, entries] of Object.entries(groups)) {
-        for (const e of entries) {
-            if (e.date !== 'Unknown date') {
-                const dateMatch = e.date.match(/(\d{4})/);
-                if (dateMatch) {
-                    const year = parseInt(dateMatch[1]);
-                    const currentYear = new Date().getFullYear();
-                    if (currentYear - year > 1 && e.status === 'active') {
-                        outdated.push({
-                            title: `Possibly outdated: ${name}`,
-                            detail: `Last confirmed ${currentYear - year} years ago.`,
-                            source: e.date
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    for (const [name, entries] of Object.entries(groups)) {
-        const unknownStatus = entries.filter(e => e.status === 'unknown');
-        if (unknownStatus.length > 0 && !conflicts.some(c => c.title.includes(name))) {
-            unknown.push({
-                title: `Uncertain medication status: ${name}`,
-                detail: `Some records for ${name} have unclear instructions.`,
-                source: unknownStatus.map(e => e.date).join('; ')
-            });
-        }
-    }
-
-    for (const med of medications) {
-        if (med.date !== 'Unknown date') {
-            timeline.push({
-                date: med.date,
-                event: `${med.name} — ${med.status === 'active' ? 'Active' : med.status === 'stopped' ? 'Stopped' : 'Unknown'}`,
-                instruction: med.instruction
-            });
-        }
-    }
-    timeline.sort((a, b) => a.date.localeCompare(b.date));
-
-    return { conflicts, confirmed, outdated, unknown, timeline };
-}
-
-async function searchPubMed(symptom) {
-    try {
-        const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(symptom)}&retmode=json&retmax=5`;
-        const response = await axios.get(url);
-        return response.data;
-    } catch (error) {
-        return null;
-    }
-}
-
-async function searchMedlinePlus(symptom) {
-    try {
-        const url = `https://connect.medlineplus.gov/service?mainSearchCriteria.v.dn=${encodeURIComponent(symptom)}&informationRecipient.languageCode.c=en`;
-        const response = await axios.get(url);
-        return response.data;
-    } catch (error) {
-        return null;
-    }
-}
-
-async function searchClinicalTrials(symptom) {
-    try {
-        const url = `https://clinicaltrials.gov/api/v2/studies?query.cond=${encodeURIComponent(symptom)}&pageSize=3`;
-        const response = await axios.get(url);
-        return response.data;
-    } catch (error) {
-        return null;
-    }
-}
-
-async function getHealthInfo(symptom) {
-    const results = {
-        symptom: symptom,
-        pubmed: null,
-        medline: null,
-        trials: null,
-        timestamp: new Date().toISOString()
+    return {
+        whatMayBeHappening,
+        whyItMayBeHappening,
+        whatToDoNow,
+        whenToSeekCare
     };
-
-    try {
-        results.pubmed = await searchPubMed(symptom);
-        results.medline = await searchMedlinePlus(symptom);
-        results.trials = await searchClinicalTrials(symptom);
-    } catch (error) {
-        console.error('Health info error:', error);
-    }
-
-    return results;
 }
 
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'TRACE API running with AI' });
-});
+// ─── MAIN ANALYSIS ────────────────────────────────────────────
 
-app.post('/api/analyze-symptoms', async (req, res) => {
-    try {
-        const { symptoms } = req.body;
-        if (!symptoms) {
-            return res.status(400).json({ error: 'No symptoms provided' });
-        }
-        const result = smartSymptomAnalysis(symptoms);
-        res.json({
-            success: true,
-            data: result
-        });
-    } catch (error) {
-        console.error('Symptom analysis error:', error);
-        res.status(500).json({ error: 'Failed to analyze symptoms' });
+function analyzeSymptoms(inputText, profile = {}) {
+    const text = String(inputText || "")
+        .trim()
+        .toLowerCase();
+
+    const bodyPart = detectBodyPart(text);
+    const painType = detectPainType(text);
+    const symptoms = detectSymptoms(text);
+    const severity = detectSeverity(text);
+    const emergency = detectEmergency(text);
+
+    const receipt = buildReasoningReceipt({
+        bodyPart,
+        painType,
+        symptoms,
+        severity,
+        emergency,
+        profile
+    });
+
+    const guidance = buildUserGuidance({
+        bodyPart,
+        painType,
+        symptoms,
+        severity,
+        emergency
+    });
+
+    const primaryPattern =
+        bodyPart && painType
+            ? `${painType} ${bodyPart} symptom pattern`
+            : bodyPart
+                ? `${bodyPart} symptom pattern`
+                : symptoms.length
+                    ? `${symptoms[0]} symptom pattern`
+                    : "insufficient symptom pattern";
+
+    const overview = emergency
+        ? "TRACE detected a potentially urgent signal in the information provided. This result should not replace emergency medical assessment."
+        : "TRACE found a symptom pattern from the information provided, while also considering the health context supplied in the profile.";
+
+    // Only ask for information that has NOT already been supplied.
+    const missingInformation = [];
+
+    if (!profile.age) {
+        missingInformation.push("Exact age");
     }
-});
 
-app.post('/api/health-info', async (req, res) => {
-    try {
-        const { symptom } = req.body;
-        if (!symptom) {
-            return res.status(400).json({ error: 'No symptom provided' });
-        }
-        const healthInfo = await getHealthInfo(symptom);
-        res.json({
-            success: true,
-            data: healthInfo
-        });
-    } catch (error) {
-        console.error('Health info error:', error);
-        res.status(500).json({ error: 'Failed to fetch health information' });
+    missingInformation.push(
+        "How and when the symptom started",
+        "Whether it is getting better or worse"
+    );
+
+    if (!profile.conditions) {
+        missingInformation.push(
+            "Relevant medical history"
+        );
     }
-});
 
-app.post('/api/process', (req, res) => {
-    try {
-        const { documents } = req.body;
-        if (!documents || documents.length === 0) {
-            return res.status(400).json({ error: 'No documents provided' });
-        }
+    if (!profile.medications) {
+        missingInformation.push(
+            "Current medications"
+        );
+    }
 
-        let allMedications = [];
-        let allInstructions = [];
+    missingInformation.push(
+        "Recent injury, illness, or unusual activity",
+        "Other symptoms occurring at the same time"
+    );
 
-        for (const doc of documents) {
-            const text = doc.content || '';
-            const meds = extractMedications(text);
-            const instructions = extractInstructions(text);
-            allMedications = allMedications.concat(meds);
-            allInstructions = allInstructions.concat(instructions);
-        }
+    return {
+        traceVersion: "2.1",
 
-        const uniqueMeds = [];
-        const seen = new Set();
-        for (const med of allMedications) {
-            const key = med.name + med.status + med.date;
-            if (!seen.has(key)) {
-                seen.add(key);
-                uniqueMeds.push(med);
+        input: {
+            originalText: inputText
+        },
+
+        profileContext: {
+            age: profile.age || null,
+            gender: profile.gender || null,
+            city: profile.city || null,
+            conditions: profile.conditions || null,
+            allergies: profile.allergies || null,
+            medications: profile.medications || null,
+            bloodGroup: profile.bloodGroup || null
+        },
+
+        summary: {
+            primaryPattern,
+            detectedSymptoms: symptoms,
+            bodyPart,
+            painType,
+            severity,
+            emergency
+        },
+
+        evidence: receipt.observedEvidence,
+
+        evidenceStatus: receipt.evidenceStatus,
+
+        possibleExplanations:
+            receipt.possibleExplanations,
+
+        missingInformation,
+
+        decisionChangingQuestions:
+            receipt.decisionChangingQuestions,
+
+        overview,
+
+        whatMayBeHappening:
+            guidance.whatMayBeHappening,
+
+        whyItMayBeHappening:
+            guidance.whyItMayBeHappening,
+
+        whatToDoNow:
+            guidance.whatToDoNow,
+
+        whenToSeekCare:
+            guidance.whenToSeekCare,
+
+        emergency: emergency
+            ? {
+                active: true,
+                message:
+                    "Potential emergency warning detected. If you are experiencing a serious or rapidly worsening emergency, call 112 or seek emergency medical care immediately."
             }
-        }
-
-        const result = reconcile(uniqueMeds);
-
-        for (const inst of allInstructions) {
-            if (inst.type === 'follow-up' || inst.type === 'review') {
-                if (!result.missing) result.missing = [];
-                result.missing.push({
-                    title: `Missing follow-up: "${inst.text}"`,
-                    detail: `A follow-up was mentioned but no corresponding result was found.`,
-                    source: inst.date || 'Unknown date'
-                });
-            }
-        }
-
-        res.json({
-            success: true,
-            medications: uniqueMeds,
-            instructions: allInstructions,
-            summary: {
-                confirmed: result.confirmed.length,
-                conflicts: result.conflicts.length,
-                missing: result.missing ? result.missing.length : 0,
-                outdated: result.outdated.length,
-                unknown: result.unknown.length
+            : {
+                active: false,
+                message:
+                    "No explicit emergency warning signal was detected from the text provided. This does not rule out a medical emergency."
             },
-            data: result
-        });
 
+        emergencySignals: emergency
+            ? [
+                "Potentially urgent symptom wording detected",
+                "Immediate clinical assessment may be appropriate"
+            ]
+            : [],
+
+        confidence: {
+            level: "pattern-based",
+            explanation:
+                "This is confidence in the text pattern extraction, not confidence in a medical diagnosis."
+        },
+
+        disclaimer:
+            "TRACE provides AI-assisted, text-based health guidance and triage support. It is not a medical diagnosis and cannot replace a qualified healthcare professional."
+    };
+}
+
+// ─── API ROUTES ───────────────────────────────────────────────
+
+app.get("/api/health", (req, res) => {
+    res.json({
+        status: "ok",
+        service: "TRACE backend",
+        version: "2.1"
+    });
+});
+
+app.post("/api/analyze-symptoms", (req, res) => {
+    try {
+        const {
+            symptoms,
+            text,
+            message,
+            profile
+        } = req.body || {};
+
+        const input =
+            symptoms ||
+            text ||
+            message ||
+            "";
+
+        if (!String(input).trim()) {
+            return res.status(400).json({
+                error:
+                    "Please provide a symptom description."
+            });
+        }
+
+        const result = analyzeSymptoms(
+            input,
+            profile || {}
+        );
+
+        return res.json(result);
     } catch (error) {
-        console.error('Processing error:', error);
-        res.status(500).json({ error: 'Failed to process documents' });
+        console.error(
+            "TRACE analysis error:",
+            error
+        );
+
+        return res.status(500).json({
+            error:
+                "Unable to analyze the symptom description.",
+            details: error.message
+        });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 TRACE API running on http://localhost:${PORT}`);
-    console.log(`🧠 Smart symptom analysis enabled with 20+ conditions`);
+// ─── HEALTH INFO ──────────────────────────────────────────────
+
+app.post("/api/health-info", (req, res) => {
+    try {
+        const { query } = req.body || {};
+
+        if (!query || !String(query).trim()) {
+            return res.status(400).json({
+                error:
+                    "Please provide a health information query."
+            });
+        }
+
+        return res.json({
+            query,
+            answer:
+                "TRACE can provide general health information, but this endpoint does not provide a diagnosis. For persistent, worsening, or concerning symptoms, consult a qualified healthcare professional.",
+            disclaimer:
+                "General information only; not medical diagnosis or treatment."
+        });
+    } catch (error) {
+        console.error(
+            "TRACE health-info error:",
+            error
+        );
+
+        return res.status(500).json({
+            error:
+                "Unable to process the health information request."
+        });
+    }
 });
+
+// ─── LEGACY / PROCESS ROUTE ──────────────────────────────────
+
+app.post("/api/process", (req, res) => {
+    try {
+        const {
+            symptoms,
+            text,
+            message,
+            input,
+            profile
+        } = req.body || {};
+
+        const symptomText =
+            symptoms ||
+            text ||
+            message ||
+            input ||
+            "";
+
+        if (!String(symptomText).trim()) {
+            return res.status(400).json({
+                error:
+                    "Please provide a symptom description."
+            });
+        }
+
+        const result = analyzeSymptoms(
+            symptomText,
+            profile || {}
+        );
+
+        return res.json(result);
+    } catch (error) {
+        console.error(
+            "TRACE process error:",
+            error
+        );
+
+        return res.status(500).json({
+            error:
+                "Unable to process the request.",
+            details: error.message
+        });
+    }
+});
+
+// ─── 404 HANDLER ──────────────────────────────────────────────
+
+app.use((req, res) => {
+    res.status(404).json({
+        error:
+            "TRACE API endpoint not found.",
+        path: req.path
+    });
+});
+
+// ─── ERROR HANDLER ────────────────────────────────────────────
+
+app.use((err, req, res, next) => {
+    console.error(
+        "TRACE server error:",
+        err
+    );
+
+    res.status(500).json({
+        error:
+            "Internal TRACE server error.",
+        details: err.message
+    });
+});
+
+// ─── START SERVER ─────────────────────────────────────────────
+
+const PORT = 5000;
+
+const server = app.listen(
+    PORT,
+    () => {
+        console.log(
+            `TRACE backend running on http://localhost:${PORT}`
+        );
+    }
+);
+
+server.on("error", error => {
+    console.error(
+        "TRACE server error:",
+        error
+    );
+});
+
+// Keep Node alive.
+setInterval(() => {}, 1000);
